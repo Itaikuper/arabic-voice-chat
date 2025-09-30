@@ -8,12 +8,15 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useGeminiLive } from '@/hooks/useGeminiLive';
 import { AudioPlayer } from './AudioPlayer';
+import { Character } from '@/lib/characters';
 
 interface VoiceChatProps {
   apiKey: string;
+  character: Character;
+  onBack?: () => void;
 }
 
-export function VoiceChat({ apiKey }: VoiceChatProps) {
+export function VoiceChat({ apiKey, character, onBack }: VoiceChatProps) {
   const [transcript, setTranscript] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [audioPlayer, setAudioPlayer] = useState<any>(null);
@@ -41,6 +44,7 @@ export function VoiceChat({ apiKey }: VoiceChatProps) {
   const { status, isRecording, connect, disconnect, startRecording, stopRecording } =
     useGeminiLive({
       apiKey,
+      character,
       onAudioData: handleAudioData,
       onTranscript: handleTranscript,
       onError: handleError,
@@ -103,13 +107,17 @@ export function VoiceChat({ apiKey }: VoiceChatProps) {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-8 bg-gradient-to-b from-gray-50 to-gray-100">
       <div className="w-full max-w-2xl bg-white rounded-2xl shadow-xl p-8">
-        {/* Header */}
+        {/* Header with Character Info */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-800 mb-2">
-            Arabic Voice Chat
+          <div className="text-6xl mb-3">{character.avatar}</div>
+          <h1 className="text-4xl font-bold text-gray-800 mb-1">
+            {character.name}
           </h1>
-          <p className="text-gray-600">
-            Speak in Palestinian Arabic dialect
+          <p className="text-2xl text-gray-600 mb-3" dir="rtl">
+            {character.nameArabic}
+          </p>
+          <p className="text-gray-500 text-sm">
+            {character.description}
           </p>
         </div>
 
@@ -218,6 +226,32 @@ export function VoiceChat({ apiKey }: VoiceChatProps) {
               <span>Click the stop button when you're done speaking</span>
             </li>
           </ul>
+
+          {/* Change Character Button */}
+          {onBack && (
+            <div className="mt-6 text-center">
+              <button
+                onClick={onBack}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm font-medium rounded-lg transition-all duration-200"
+                aria-label="Change character"
+              >
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M10 19l-7-7m0 0l7-7m-7 7h18"
+                  />
+                </svg>
+                Change Character
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

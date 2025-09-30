@@ -2,10 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { VoiceChat } from '@/components/VoiceChat';
+import { CharacterSelection } from '@/components/CharacterSelection';
+import { Character } from '@/lib/characters';
 
 export default function Home() {
   const [apiKey, setApiKey] = useState<string>('');
   const [isConfigured, setIsConfigured] = useState(false);
+  const [selectedCharacter, setSelectedCharacter] = useState<Character | null>(null);
   const [inputKey, setInputKey] = useState('');
   const [showError, setShowError] = useState(false);
 
@@ -28,8 +31,39 @@ export default function Home() {
     setShowError(false);
   };
 
+  const handleSelectCharacter = (character: Character) => {
+    setSelectedCharacter(character);
+  };
+
+  const handleBackToCharacterSelection = () => {
+    setSelectedCharacter(null);
+  };
+
+  const handleBackToApiKey = () => {
+    setIsConfigured(false);
+    setSelectedCharacter(null);
+    setInputKey('');
+  };
+
+  // Show VoiceChat if character is selected
+  if (isConfigured && selectedCharacter) {
+    return (
+      <VoiceChat
+        apiKey={apiKey}
+        character={selectedCharacter}
+        onBack={handleBackToCharacterSelection}
+      />
+    );
+  }
+
+  // Show CharacterSelection if API key is configured
   if (isConfigured) {
-    return <VoiceChat apiKey={apiKey} />;
+    return (
+      <CharacterSelection
+        onSelectCharacter={handleSelectCharacter}
+        onBack={handleBackToApiKey}
+      />
+    );
   }
 
   return (

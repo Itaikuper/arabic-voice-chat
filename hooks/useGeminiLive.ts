@@ -12,11 +12,13 @@ import {
   resampleAudio,
   AUDIO_WORKLET_CODE,
 } from '@/lib/audio/audioUtils';
+import { Character, getDefaultCharacter } from '@/lib/characters';
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 
 interface UseGeminiLiveOptions {
   apiKey: string;
+  character?: Character;
   onAudioData: (audioData: string) => void;
   onTranscript?: (text: string) => void;
   onError?: (error: Error) => void;
@@ -24,6 +26,7 @@ interface UseGeminiLiveOptions {
 
 export function useGeminiLive({
   apiKey,
+  character,
   onAudioData,
   onTranscript,
   onError,
@@ -48,26 +51,20 @@ export function useGeminiLive({
 
       const ai = new GoogleGenAI({ apiKey });
 
-      // Configuration for Palestinian Arabic conversation
+      // Use provided character or default
+      const activeCharacter = character || getDefaultCharacter();
+
+      // Configuration for Palestinian Arabic conversation with character personality
       const config = {
         responseModalities: [Modality.AUDIO],
-        systemInstruction: `You are a helpful AI assistant that speaks Palestinian Arabic dialect (اللهجة الفلسطينية).
-
-IMPORTANT INSTRUCTIONS:
-- Always respond in spoken Palestinian Arabic dialect
-- Use natural, conversational Palestinian Arabic
-- Be friendly, warm, and helpful
-- Keep responses concise and natural
-- Use common Palestinian expressions and phrases
-- Respond as if you're having a casual conversation with a friend
-
-Examples of Palestinian Arabic style:
-- Use "كيفك؟" instead of "كيف حالك؟"
-- Use "شو؟" for "what?"
-- Use "مش" for negation
-- Use colloquial vocabulary that Palestinians use in daily conversation
-
-Remember: The user is speaking to you in Palestinian Arabic, so match their dialect and speaking style naturally.`,
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: {
+              voiceName: activeCharacter.voiceName,
+            },
+          },
+        },
+        systemInstruction: activeCharacter.systemInstruction,
       };
 
       // Create Live API session
@@ -119,7 +116,7 @@ Remember: The user is speaking to you in Palestinian Arabic, so match their dial
         onError(error as Error);
       }
     }
-  }, [apiKey, onAudioData, onTranscript, onError]);
+  }, [apiKey, character, onAudioData, onTranscript, onError]);
 
   /**
    * Start recording audio from microphone

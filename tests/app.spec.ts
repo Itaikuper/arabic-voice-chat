@@ -48,19 +48,21 @@ test.describe('Arabic Voice Chat Application', () => {
     await expect(page.locator('text=Please enter a valid API key')).not.toBeVisible();
   });
 
-  test('should accept valid API key format', async ({ page }) => {
+  test('should accept valid API key format and show character selection', async ({ page }) => {
     await page.goto('http://localhost:3000');
 
     // Fill in valid API key format (mock)
     await page.locator('#apiKey').fill('AIzaSyDummyKeyForTesting123456789');
     await page.locator('button[type="submit"]').click();
 
-    // Should attempt to load voice chat (will fail without real API key, but that's OK)
-    // We're just testing the UI validation
+    // Should navigate to character selection screen
     await page.waitForTimeout(500);
 
     // The form should have been submitted (no validation error)
     await expect(page.locator('text=Please enter a valid API key')).not.toBeVisible();
+
+    // Should show character selection screen
+    await expect(page.locator('h1')).toContainText('Choose Your Conversation Partner');
   });
 
   test('should have proper responsive design', async ({ page }) => {
