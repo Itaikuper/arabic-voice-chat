@@ -1,36 +1,81 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Arabic Voice Chat 🎤
+
+A real-time voice conversation application that enables natural conversations in Palestinian Arabic dialect using Google's Gemini 2.5 Flash Native Audio model.
+
+## Features
+
+- Real-time voice-to-voice conversation
+- Palestinian Arabic dialect support  
+- Low-latency audio streaming via WebSockets
+- Native audio processing (16-bit PCM, 16kHz input / 24kHz output)
+- Voice Activity Detection
+- Secure API key handling
+- Modern, responsive UI
+- Built with Next.js 15 and TypeScript
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 20+ and npm
+- Google Gemini API key (get at https://aistudio.google.com/apikey)
+- Modern browser with microphone support
+
+### Installation
+
+1. Navigate to the project and install dependencies:
+   ```bash
+   cd arabic-voice-chat
+   npm install
+   ```
+
+2. Configure your API key (option A or B):
+
+   **Option A:** Environment variable
+   ```bash
+   cp .env.example .env.local
+   # Edit .env.local and add: NEXT_PUBLIC_GEMINI_API_KEY=your_key_here
+   ```
+
+   **Option B:** Enter at runtime in the UI
+
+3. Start the development server:
+   ```bash
+   npm run dev
+   ```
+
+4. Open http://localhost:3000
+
+## Usage
+
+1. Enter your API key (if not in .env.local)
+2. Click the microphone button
+3. Speak in Palestinian Arabic
+4. Listen to the AI's response
+5. Click stop when done
+
+## Architecture
+
+- **Direct WebSocket** connection to Gemini Live API
+- **Web Audio API** for mic capture and playback
+- **Real-time PCM audio** conversion
+- **Model:** gemini-2.5-flash-native-audio-preview-09-2025
+
+## Security
+
+- API keys stored in browser memory only
+- Direct client-to-API communication
+- Environment variables git-ignored
+- HTTPS recommended for production
+
+## Testing
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npx playwright test
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## License
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+MIT
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Built with Google Gemini API | Next.js | Tailwind CSS
