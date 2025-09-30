@@ -5,7 +5,6 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { GoogleGenAI, Modality } from '@google/genai';
-import type { LiveIncomingMessage } from '@google/genai';
 import {
   float32To16BitPCM,
   int16ArrayToBase64,
@@ -17,7 +16,6 @@ import { Character, getDefaultCharacter } from '@/lib/characters';
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 
 interface UseGeminiLiveOptions {
-  apiKey: string;
   character?: Character;
   onAudioData: (audioData: string) => void;
   onTranscript?: (text: string) => void;
@@ -25,7 +23,6 @@ interface UseGeminiLiveOptions {
 }
 
 export function useGeminiLive({
-  apiKey,
   character,
   onAudioData,
   onTranscript,
@@ -39,8 +36,37 @@ export function useGeminiLive({
   const audioContextRef = useRef<AudioContext | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioWorkletNodeRef = useRef<AudioWorkletNode | null>(null);
-  const responseQueueRef = useRef<LiveIncomingMessage[]>([]);
+  const responseQueueRef = useRef<any[]>([]);
   const isProcessingRef = useRef(false);
+  const ephemeralTokenRef = useRef<string | null>(null);
+  const tokenExpiryRef = useRef<string | null>(null);
+
+  /**
+   * Fetch ephemeral token from backend
+   */
+  const fetchEphemeralToken = useCallback(async () => {
+    const activeCharacter = character || getDefaultCharacter();
+
+    const response = await fetch('/api/auth/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        characterId: activeCharacter.id,
+        systemInstruction: activeCharacter.systemInstruction,
+        voiceName: activeCharacter.voiceName,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to fetch token');
+    }
+
+    const data = await response.json();
+    return data;
+  }, [character]);
 
   /**
    * Initialize Gemini Live API connection
@@ -49,22 +75,26 @@ export function useGeminiLive({
     try {
       setStatus('connecting');
 
-      const ai = new GoogleGenAI({ apiKey });
+      // Fetch ephemeral token from backend
+      console.log('🔐 Fetching ephemeral token from backend...');
+      const { token, expireTime } = await fetchEphemeralToken();
+      ephemeralTokenRef.current = token;
+      tokenExpiryRef.current = expireTime;
+      console.log(`✅ Ephemeral token received (expires: ${expireTime})`);
+
+      // Use ephemeral token as API key with v1alpha API version
+      const ai = new GoogleGenAI({
+        apiKey: token,
+        httpOptions: { apiVersion: 'v1alpha' }
+      });
 
       // Use provided character or default
       const activeCharacter = character || getDefaultCharacter();
 
       // Configuration for Palestinian Arabic conversation with character personality
+      // Note: systemInstruction and voiceName are locked in the ephemeral token
       const config = {
         responseModalities: [Modality.AUDIO],
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: {
-              voiceName: activeCharacter.voiceName,
-            },
-          },
-        },
-        systemInstruction: activeCharacter.systemInstruction,
       };
 
       // Create Live API session
@@ -75,7 +105,7 @@ export function useGeminiLive({
             console.log('✅ Gemini Live API connected');
             setStatus('connected');
           },
-          onmessage: (message: LiveIncomingMessage) => {
+          onmessage: (message: any) => {
             responseQueueRef.current.push(message);
 
             // Process audio data
@@ -116,7 +146,7 @@ export function useGeminiLive({
         onError(error as Error);
       }
     }
-  }, [apiKey, character, onAudioData, onTranscript, onError]);
+  }, [fetchEphemeralToken, character, onAudioData, onTranscript, onError]);
 
   /**
    * Start recording audio from microphone
@@ -237,6 +267,62 @@ export function useGeminiLive({
   }, [stopRecording]);
 
   /**
+   * Refresh ephemeral token and reconnect
+   */
+  const refreshToken = useCallback(async () => {
+    if (status !== 'connected' && status !== 'connecting') {
+      return;
+    }
+
+    console.log('🔄 Refreshing ephemeral token...');
+    const wasRecording = isRecording;
+
+    // Stop recording but keep session alive
+    if (wasRecording) {
+      stopRecording();
+    }
+
+    // Disconnect current session
+    if (sessionRef.current) {
+      sessionRef.current.close();
+      sessionRef.current = null;
+    }
+
+    // Reconnect with new token
+    await connect();
+
+    // Resume recording if it was active
+    if (wasRecording) {
+      await startRecording();
+    }
+  }, [status, isRecording, stopRecording, connect, startRecording]);
+
+  /**
+   * Setup token refresh timer
+   */
+  useEffect(() => {
+    if (!tokenExpiryRef.current || status !== 'connected') {
+      return;
+    }
+
+    const expiryTime = new Date(tokenExpiryRef.current).getTime();
+    const now = Date.now();
+    const timeUntilExpiry = expiryTime - now;
+
+    // Refresh token 2 minutes before expiration
+    const refreshTime = timeUntilExpiry - 2 * 60 * 1000;
+
+    if (refreshTime > 0) {
+      console.log(`⏲️  Token refresh scheduled in ${Math.floor(refreshTime / 1000)} seconds`);
+      const timeoutId = setTimeout(() => {
+        refreshToken();
+      }, refreshTime);
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [tokenExpiryRef.current, status, refreshToken]);
+
+  /**
    * Cleanup on unmount
    */
   useEffect(() => {
@@ -252,5 +338,6 @@ export function useGeminiLive({
     disconnect,
     startRecording,
     stopRecording,
+    refreshToken,
   };
 }

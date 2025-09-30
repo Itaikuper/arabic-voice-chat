@@ -11,12 +11,11 @@ import { AudioPlayer } from './AudioPlayer';
 import { Character } from '@/lib/characters';
 
 interface VoiceChatProps {
-  apiKey: string;
   character: Character;
   onBack?: () => void;
 }
 
-export function VoiceChat({ apiKey, character, onBack }: VoiceChatProps) {
+export function VoiceChat({ character, onBack }: VoiceChatProps) {
   const [transcript, setTranscript] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [audioPlayer, setAudioPlayer] = useState<any>(null);
@@ -43,7 +42,6 @@ export function VoiceChat({ apiKey, character, onBack }: VoiceChatProps) {
   // Initialize Gemini Live
   const { status, isRecording, connect, disconnect, startRecording, stopRecording } =
     useGeminiLive({
-      apiKey,
       character,
       onAudioData: handleAudioData,
       onTranscript: handleTranscript,

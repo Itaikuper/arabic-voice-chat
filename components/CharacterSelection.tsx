@@ -9,10 +9,9 @@ import { Character, characters } from '@/lib/characters';
 
 interface CharacterSelectionProps {
   onSelectCharacter: (character: Character) => void;
-  onBack: () => void;
 }
 
-export function CharacterSelection({ onSelectCharacter, onBack }: CharacterSelectionProps) {
+export function CharacterSelection({ onSelectCharacter }: CharacterSelectionProps) {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-8 bg-gradient-to-b from-gray-50 to-gray-100">
       <div className="w-full max-w-6xl">
@@ -75,29 +74,6 @@ export function CharacterSelection({ onSelectCharacter, onBack }: CharacterSelec
           ))}
         </div>
 
-        {/* Back Button */}
-        <div className="text-center">
-          <button
-            onClick={onBack}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium rounded-lg transition-all duration-200"
-            aria-label="Go back to API key entry"
-          >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M10 19l-7-7m0 0l7-7m-7 7h18"
-              />
-            </svg>
-            Back to API Key
-          </button>
-        </div>
       </div>
 
       {/* Footer */}

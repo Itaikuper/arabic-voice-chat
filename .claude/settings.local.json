@@ -12,7 +12,11 @@
       "Bash(gh repo view:*)",
       "Bash(gh repo create:*)",
       "Bash(npm run lint)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(mkdir:*)",
+      "Bash(curl -X POST http://localhost:3002/api/auth/token -H \"Content-Type: application/json\" -d \"{\"\"characterId\"\":\"\"ahmed\"\",\"\"systemInstruction\"\":\"\"Test instruction\"\",\"\"voiceName\"\":\"\"Puck\"\"}\")",
+      "Bash(curl:*)",
+      "Bash(npx tsc:*)"
     ],
     "deny": [],
     "ask": []
