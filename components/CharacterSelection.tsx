@@ -5,19 +5,53 @@
 
 'use client';
 
+import { useState } from 'react';
 import { Character, characters } from '@/lib/characters';
+import { AdminPanel } from './AdminPanel';
 
 interface CharacterSelectionProps {
   onSelectCharacter: (character: Character) => void;
 }
 
 export function CharacterSelection({ onSelectCharacter }: CharacterSelectionProps) {
+  const [showAdminPanel, setShowAdminPanel] = useState(false);
+  const [clickCount, setClickCount] = useState(0);
+  const [clickTimer, setClickTimer] = useState<NodeJS.Timeout | null>(null);
+
+  /**
+   * Handle triple-click on header to open admin panel
+   */
+  const handleHeaderClick = () => {
+    setClickCount((prev) => prev + 1);
+
+    // Clear existing timer
+    if (clickTimer) {
+      clearTimeout(clickTimer);
+    }
+
+    // Check for triple click
+    if (clickCount + 1 >= 3) {
+      setShowAdminPanel(true);
+      setClickCount(0);
+      setClickTimer(null);
+    } else {
+      // Reset count after 500ms
+      const timer = setTimeout(() => {
+        setClickCount(0);
+      }, 500);
+      setClickTimer(timer);
+    }
+  };
+
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-8 bg-gradient-to-b from-gray-50 to-gray-100">
       <div className="w-full max-w-6xl">
         {/* Header */}
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-gray-800 mb-3">
+          <h1
+            onClick={handleHeaderClick}
+            className="text-4xl font-bold text-gray-800 mb-3 cursor-default select-none"
+          >
             Choose Your Conversation Partner
           </h1>
           <p className="text-lg text-gray-600">
@@ -80,6 +114,11 @@ export function CharacterSelection({ onSelectCharacter }: CharacterSelectionProp
       <div className="mt-12 text-center text-sm text-gray-500">
         <p>Powered by Google Gemini 2.5 Flash Native Audio</p>
       </div>
+
+      {/* Admin Panel Modal */}
+      {showAdminPanel && (
+        <AdminPanel onClose={() => setShowAdminPanel(false)} />
+      )}
     </div>
   );
 }

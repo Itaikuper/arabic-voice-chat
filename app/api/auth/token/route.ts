@@ -11,6 +11,7 @@
 
 import { GoogleGenAI } from '@google/genai';
 import { NextResponse } from 'next/server';
+import { getCustomInstruction } from '@/lib/instructionStore';
 
 export async function POST(request: Request) {
   try {
@@ -36,6 +37,19 @@ export async function POST(request: Request) {
       );
     }
 
+    // Check for custom instruction override
+    let finalSystemInstruction = systemInstruction;
+    let finalVoiceName = voiceName;
+
+    if (characterId) {
+      const customInstruction = getCustomInstruction(characterId);
+      if (customInstruction) {
+        finalSystemInstruction = customInstruction.systemInstruction;
+        finalVoiceName = customInstruction.voiceName;
+        console.log(`🎨 Using custom system instruction for character: ${characterId}`);
+      }
+    }
+
     console.log(`🔐 Generating ephemeral token for character: ${characterId || 'default'}`);
 
     // Initialize Google GenAI client with master API key
@@ -59,11 +73,11 @@ export async function POST(request: Request) {
             speechConfig: {
               voiceConfig: {
                 prebuiltVoiceConfig: {
-                  voiceName: voiceName,
+                  voiceName: finalVoiceName,
                 },
               },
             },
-            systemInstruction: systemInstruction,
+            systemInstruction: finalSystemInstruction,
           },
         },
         httpOptions: {
