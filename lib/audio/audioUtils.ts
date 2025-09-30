@@ -51,14 +51,15 @@ export function int16ToFloat32(int16Array: Int16Array): Float32Array {
   const float32Array = new Float32Array(int16Array.length);
   for (let i = 0; i < int16Array.length; i++) {
     // Convert 16-bit integer to float in range [-1, 1]
-    float32Array[i] = int16Array[i] / (int16Array[i] < 0 ? 0x8000 : 0x7fff);
+    // Use symmetric scaling to avoid distortion
+    float32Array[i] = int16Array[i] / 0x8000;
   }
   return float32Array;
 }
 
 /**
  * Resample audio from source sample rate to target sample rate
- * Uses linear interpolation for simplicity
+ * Uses cubic interpolation for better quality (reduces metallic artifacts)
  */
 export function resampleAudio(
   audioData: Float32Array,
@@ -78,12 +79,22 @@ export function resampleAudio(
     const index = Math.floor(position);
     const fraction = position - index;
 
-    if (index + 1 < audioData.length) {
-      // Linear interpolation
-      result[i] = audioData[index] * (1 - fraction) + audioData[index + 1] * fraction;
-    } else {
-      result[i] = audioData[index];
-    }
+    // Cubic interpolation using 4 points for smoother results
+    const y0 = audioData[Math.max(0, index - 1)] || 0;
+    const y1 = audioData[index] || 0;
+    const y2 = audioData[Math.min(audioData.length - 1, index + 1)] || 0;
+    const y3 = audioData[Math.min(audioData.length - 1, index + 2)] || 0;
+
+    // Catmull-Rom spline interpolation
+    const a0 = -0.5 * y0 + 1.5 * y1 - 1.5 * y2 + 0.5 * y3;
+    const a1 = y0 - 2.5 * y1 + 2 * y2 - 0.5 * y3;
+    const a2 = -0.5 * y0 + 0.5 * y2;
+    const a3 = y1;
+
+    const frac2 = fraction * fraction;
+    const frac3 = frac2 * fraction;
+
+    result[i] = a0 * frac3 + a1 * frac2 + a2 * fraction + a3;
   }
 
   return result;

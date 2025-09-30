@@ -22,8 +22,9 @@ export function AudioPlayer({ onPlaybackComplete }: AudioPlayerProps) {
    * Initialize audio context
    */
   useEffect(() => {
-    // Create AudioContext with 24kHz sample rate (Gemini output)
-    audioContextRef.current = new AudioContext({ sampleRate: 24000 });
+    // Create AudioContext without forcing sample rate - let browser use native hardware rate
+    // This prevents poor quality resampling by the browser
+    audioContextRef.current = new AudioContext();
 
     return () => {
       if (audioContextRef.current) {
@@ -39,24 +40,41 @@ export function AudioPlayer({ onPlaybackComplete }: AudioPlayerProps) {
     if (!audioContextRef.current) return;
 
     try {
+      const audioContext = audioContextRef.current;
+
       // Convert base64 to audio buffer
       const int16Array = base64ToInt16Array(base64Audio);
       const float32Array = int16ToFloat32(int16Array);
 
-      // Create AudioBuffer
-      const audioBuffer = audioContextRef.current.createBuffer(
+      // Apply gentle fade-in/fade-out to prevent clicks
+      const fadeLength = Math.min(Math.floor(float32Array.length * 0.01), 240); // 1% or max 10ms at 24kHz
+      for (let i = 0; i < fadeLength; i++) {
+        const fade = i / fadeLength;
+        float32Array[i] *= fade; // Fade in
+        float32Array[float32Array.length - 1 - i] *= fade; // Fade out
+      }
+
+      // Create AudioBuffer with proper sample rate
+      // Gemini outputs 24kHz, but we create buffer that browser will resample properly
+      const audioBuffer = audioContext.createBuffer(
         1, // mono
         float32Array.length,
-        24000 // 24kHz sample rate (Gemini output)
+        24000 // Source is 24kHz (Gemini output)
       );
 
       // Copy data to buffer
       audioBuffer.getChannelData(0).set(float32Array);
 
-      // Create source node
-      const source = audioContextRef.current.createBufferSource();
+      // Create source node with better quality resampling
+      const source = audioContext.createBufferSource();
       source.buffer = audioBuffer;
-      source.connect(audioContextRef.current.destination);
+
+      // Add gain node for smooth volume control
+      const gainNode = audioContext.createGain();
+      gainNode.gain.value = 1.0;
+
+      source.connect(gainNode);
+      gainNode.connect(audioContext.destination);
 
       // Play audio
       source.start();
