@@ -15,11 +15,17 @@ import { Character, getDefaultCharacter } from '@/lib/characters';
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 
+export interface UsageMetrics {
+  inputSeconds: number;
+  outputSeconds: number;
+}
+
 interface UseGeminiLiveOptions {
   character?: Character;
   onAudioData: (audioData: string) => void;
   onTranscript?: (text: string) => void;
   onError?: (error: Error) => void;
+  onUsageUpdate?: (metrics: UsageMetrics) => void;
 }
 
 export function useGeminiLive({
@@ -27,6 +33,7 @@ export function useGeminiLive({
   onAudioData,
   onTranscript,
   onError,
+  onUsageUpdate,
 }: UseGeminiLiveOptions) {
   const [status, setStatus] = useState<ConnectionStatus>('disconnected');
   const [isRecording, setIsRecording] = useState(false);
@@ -40,6 +47,12 @@ export function useGeminiLive({
   const isProcessingRef = useRef(false);
   const ephemeralTokenRef = useRef<string | null>(null);
   const tokenExpiryRef = useRef<string | null>(null);
+
+  // Usage tracking refs
+  const inputAudioStartRef = useRef<number>(0);
+  const outputAudioStartRef = useRef<number>(0);
+  const totalInputSecondsRef = useRef<number>(0);
+  const totalOutputSecondsRef = useRef<number>(0);
 
   /**
    * Fetch ephemeral token from backend
@@ -111,6 +124,27 @@ export function useGeminiLive({
             // Process audio data
             if (message.data) {
               onAudioData(message.data);
+
+              // Track output audio (24kHz, base64 encoded PCM)
+              try {
+                const audioBase64 = message.data;
+                const binaryString = atob(audioBase64);
+                const bytesLength = binaryString.length;
+                const samplesCount = bytesLength / 2; // 16-bit = 2 bytes per sample
+                const durationSeconds = samplesCount / 24000; // 24kHz output
+
+                totalOutputSecondsRef.current += durationSeconds;
+
+                // Notify usage update
+                if (onUsageUpdate) {
+                  onUsageUpdate({
+                    inputSeconds: totalInputSecondsRef.current,
+                    outputSeconds: totalOutputSecondsRef.current,
+                  });
+                }
+              } catch (error) {
+                console.error('Error tracking output audio duration:', error);
+              }
             }
 
             // Process text transcript if available
@@ -184,10 +218,25 @@ export function useGeminiLive({
       const workletNode = new AudioWorkletNode(audioContext, 'audio-processor');
       audioWorkletNodeRef.current = workletNode;
 
+      // Track input audio start time
+      inputAudioStartRef.current = Date.now();
+
       // Handle audio data from worklet
       workletNode.port.onmessage = (event) => {
         if (event.data.type === 'audio' && sessionRef.current) {
           const audioData = event.data.data as Float32Array;
+
+          // Calculate duration of this audio chunk
+          const chunkDurationSeconds = audioData.length / 48000;
+          totalInputSecondsRef.current += chunkDurationSeconds;
+
+          // Notify usage update
+          if (onUsageUpdate) {
+            onUsageUpdate({
+              inputSeconds: totalInputSecondsRef.current,
+              outputSeconds: totalOutputSecondsRef.current,
+            });
+          }
 
           // Resample from 48kHz to 16kHz
           const resampled = resampleAudio(audioData, 48000, 16000);

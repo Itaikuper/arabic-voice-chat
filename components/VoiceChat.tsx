@@ -6,8 +6,9 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
-import { useGeminiLive } from '@/hooks/useGeminiLive';
+import { useGeminiLive, UsageMetrics } from '@/hooks/useGeminiLive';
 import { AudioPlayer } from './AudioPlayer';
+import ChatMeter from './ChatMeter';
 import { Character } from '@/lib/characters';
 
 interface VoiceChatProps {
@@ -19,6 +20,10 @@ export function VoiceChat({ character, onBack }: VoiceChatProps) {
   const [transcript, setTranscript] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [audioPlayer, setAudioPlayer] = useState<any>(null);
+  const [usageMetrics, setUsageMetrics] = useState<UsageMetrics>({
+    inputSeconds: 0,
+    outputSeconds: 0,
+  });
 
   // Handle audio data from Gemini
   const handleAudioData = useCallback((audioData: string) => {
@@ -39,6 +44,11 @@ export function VoiceChat({ character, onBack }: VoiceChatProps) {
     console.error('Error:', err);
   }, []);
 
+  // Handle usage updates
+  const handleUsageUpdate = useCallback((metrics: UsageMetrics) => {
+    setUsageMetrics(metrics);
+  }, []);
+
   // Initialize Gemini Live
   const { status, isRecording, connect, disconnect, startRecording, stopRecording } =
     useGeminiLive({
@@ -46,6 +56,7 @@ export function VoiceChat({ character, onBack }: VoiceChatProps) {
       onAudioData: handleAudioData,
       onTranscript: handleTranscript,
       onError: handleError,
+      onUsageUpdate: handleUsageUpdate,
     });
 
   // Get audio player instance
@@ -128,6 +139,14 @@ export function VoiceChat({ character, onBack }: VoiceChatProps) {
         {/* Audio Player */}
         <div className="flex justify-center mb-8">
           <AudioPlayer />
+        </div>
+
+        {/* Chat Meter */}
+        <div className="mb-8">
+          <ChatMeter
+            inputSeconds={usageMetrics.inputSeconds}
+            outputSeconds={usageMetrics.outputSeconds}
+          />
         </div>
 
         {/* Recording Controls */}
