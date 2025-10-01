@@ -498,6 +498,7 @@ export function VoiceChat({ character, onBack, enableAnalysis = false }: VoiceCh
               </div>
             )}
           </div>
+          </div>
         </div>
       </div>
 
