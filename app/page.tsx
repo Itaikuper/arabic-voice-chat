@@ -22,6 +22,7 @@ export default function Home() {
       <VoiceChat
         character={selectedCharacter}
         onBack={handleBackToCharacterSelection}
+        enableAnalysis={true}
       />
     );
   }

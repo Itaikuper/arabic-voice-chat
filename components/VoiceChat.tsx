@@ -9,14 +9,18 @@ import { useState, useCallback, useEffect } from 'react';
 import { useGeminiLive, UsageMetrics } from '@/hooks/useGeminiLive';
 import { AudioPlayer } from './AudioPlayer';
 import ChatMeter from './ChatMeter';
+import FluencyMeter from './FluencyMeter';
+import SessionReport from './SessionReport';
 import { Character } from '@/lib/characters';
+import { SpeechAnalysisResult } from '@/lib/audio/speechAnalysis';
 
 interface VoiceChatProps {
   character: Character;
   onBack?: () => void;
+  enableAnalysis?: boolean; // Enable speech analysis feature
 }
 
-export function VoiceChat({ character, onBack }: VoiceChatProps) {
+export function VoiceChat({ character, onBack, enableAnalysis = false }: VoiceChatProps) {
   const [transcript, setTranscript] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [audioPlayer, setAudioPlayer] = useState<any>(null);
@@ -24,6 +28,11 @@ export function VoiceChat({ character, onBack }: VoiceChatProps) {
     inputSeconds: 0,
     outputSeconds: 0,
   });
+  const [analysisResult, setAnalysisResult] = useState<SpeechAnalysisResult | null>(null);
+  const [fullTranscript, setFullTranscript] = useState<string>('');
+  const [analysisHistory, setAnalysisHistory] = useState<SpeechAnalysisResult[]>([]);
+  const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null);
+  const [showReport, setShowReport] = useState(false);
 
   // Handle audio data from Gemini
   const handleAudioData = useCallback((audioData: string) => {
@@ -36,6 +45,7 @@ export function VoiceChat({ character, onBack }: VoiceChatProps) {
   // Handle transcript updates
   const handleTranscript = useCallback((text: string) => {
     setTranscript((prev) => [...prev, `AI: ${text}`]);
+    setFullTranscript((prev) => prev + ' ' + text);
   }, []);
 
   // Handle errors
@@ -49,6 +59,13 @@ export function VoiceChat({ character, onBack }: VoiceChatProps) {
     setUsageMetrics(metrics);
   }, []);
 
+  // Handle analysis results
+  const handleAnalysisResult = useCallback((result: SpeechAnalysisResult) => {
+    console.log('📊 Speech analysis result:', result);
+    setAnalysisResult(result);
+    setAnalysisHistory((prev) => [...prev, result]);
+  }, []);
+
   // Initialize Gemini Live
   const { status, isRecording, connect, disconnect, startRecording, stopRecording } =
     useGeminiLive({
@@ -57,6 +74,9 @@ export function VoiceChat({ character, onBack }: VoiceChatProps) {
       onTranscript: handleTranscript,
       onError: handleError,
       onUsageUpdate: handleUsageUpdate,
+      onAnalysisResult: handleAnalysisResult,
+      enableAnalysis,
+      analysisIntervalSeconds: 10,
     });
 
   // Get audio player instance
@@ -74,6 +94,9 @@ export function VoiceChat({ character, onBack }: VoiceChatProps) {
   // Handle start button click
   const handleStart = async () => {
     setError(null);
+    if (!sessionStartTime) {
+      setSessionStartTime(new Date());
+    }
     if (status === 'disconnected') {
       await connect();
     }
@@ -83,6 +106,24 @@ export function VoiceChat({ character, onBack }: VoiceChatProps) {
   // Handle stop button click
   const handleStop = () => {
     stopRecording();
+  };
+
+  // Handle end session - show report
+  const handleEndSession = () => {
+    stopRecording();
+    disconnect();
+    if (enableAnalysis && analysisHistory.length > 0) {
+      setShowReport(true);
+    }
+  };
+
+  // Close report and reset session
+  const handleCloseReport = () => {
+    setShowReport(false);
+    setAnalysisHistory([]);
+    setSessionStartTime(null);
+    setFullTranscript('');
+    setTranscript([]);
   };
 
   // Get status color
@@ -148,6 +189,13 @@ export function VoiceChat({ character, onBack }: VoiceChatProps) {
             outputSeconds={usageMetrics.outputSeconds}
           />
         </div>
+
+        {/* Fluency Meter - Show when analysis is enabled and we have results */}
+        {enableAnalysis && analysisResult && (
+          <div className="mb-8">
+            <FluencyMeter result={analysisResult} transcript={fullTranscript} />
+          </div>
+        )}
 
         {/* Recording Controls */}
         <div className="flex flex-col items-center gap-4 mb-8">
@@ -244,9 +292,33 @@ export function VoiceChat({ character, onBack }: VoiceChatProps) {
             </li>
           </ul>
 
-          {/* Change Character Button */}
-          {onBack && (
-            <div className="mt-6 text-center">
+          {/* Action Buttons */}
+          <div className="mt-6 flex gap-3 justify-center">
+            {/* End Session & Show Report Button */}
+            {enableAnalysis && analysisHistory.length > 0 && (
+              <button
+                onClick={handleEndSession}
+                className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-medium rounded-lg transition-all duration-200 shadow-lg"
+              >
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                  />
+                </svg>
+                View Session Report
+              </button>
+            )}
+
+            {/* Change Character Button */}
+            {onBack && (
               <button
                 onClick={onBack}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm font-medium rounded-lg transition-all duration-200"
@@ -267,8 +339,8 @@ export function VoiceChat({ character, onBack }: VoiceChatProps) {
                 </svg>
                 Change Character
               </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 
@@ -276,6 +348,21 @@ export function VoiceChat({ character, onBack }: VoiceChatProps) {
       <div className="mt-8 text-center text-sm text-gray-500">
         <p>Powered by Google Gemini 2.5 Flash Native Audio</p>
       </div>
+
+      {/* Session Report Modal */}
+      {showReport && sessionStartTime && (
+        <SessionReport
+          sessionData={{
+            duration: usageMetrics.inputSeconds,
+            analysisResults: analysisHistory,
+            transcript: fullTranscript,
+            characterName: character.name,
+            startTime: sessionStartTime,
+            endTime: new Date(),
+          }}
+          onClose={handleCloseReport}
+        />
+      )}
     </div>
   );
 }

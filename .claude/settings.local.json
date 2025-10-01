@@ -16,7 +16,14 @@
       "Bash(mkdir:*)",
       "Bash(curl -X POST http://localhost:3002/api/auth/token -H \"Content-Type: application/json\" -d \"{\"\"characterId\"\":\"\"ahmed\"\",\"\"systemInstruction\"\":\"\"Test instruction\"\",\"\"voiceName\"\":\"\"Puck\"\"}\")",
       "Bash(curl:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(python:*)",
+      "Bash(venvScriptspip.exe install:*)",
+      "Bash(\"./venv/Scripts/pip.exe\" install -r requirements.txt)",
+      "Bash(timeout:*)",
+      "Bash(start /B \"./venv/Scripts/python.exe\":*)",
+      "Bash(\"./venv/Scripts/python.exe\" test_analysis.py)",
+      "Bash(\"./venv/Scripts/python.exe\" test_simple.py)"
     ],
     "deny": [],
     "ask": []

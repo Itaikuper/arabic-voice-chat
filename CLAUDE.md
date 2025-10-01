@@ -29,6 +29,17 @@ npx playwright test --headed
 
 # Show test report
 npx playwright show-report
+
+# Speech Analysis Python Service
+cd python-service
+python -m venv venv
+venv\Scripts\activate  # Windows
+source venv/bin/activate  # Linux/Mac
+pip install -r requirements.txt
+python analyze.py  # Starts on http://localhost:8000
+
+# Test speech analysis
+python test_analysis.py
 ```
 
 ## Architecture Overview
@@ -57,7 +68,13 @@ npx playwright show-report
 
 **`components/VoiceChat.tsx`** - Main conversation UI
 **`components/AudioPlayer.tsx`** - Handles playback of AI responses
+**`components/FluencyMeter.tsx`** - Real-time speech analysis visualization
 **`app/page.tsx`** - Landing page with API key input
+
+**Speech Analysis Components:**
+- **`lib/audio/speechAnalysis.ts`** - TypeScript interfaces and utilities for speech analysis
+- **`app/api/analyze/route.ts`** - Next.js API route proxying to Python service
+- **`python-service/analyze.py`** - FastAPI service using Parselmouth for acoustic analysis
 
 ### Key Technical Details
 
@@ -87,3 +104,43 @@ npm install --force @tailwindcss/oxide-win32-x64-msvc lightningcss-win32-x64-msv
 - **TypeScript** strict mode
 - **Playwright** for E2E testing
 - **ESLint** for code quality
+
+## Speech Analysis Feature (Optional)
+
+Real-time Arabic speech fluency and confidence analysis. See [SPEECH_ANALYSIS.md](SPEECH_ANALYSIS.md) for full documentation.
+
+### Quick Start
+
+1. Install Python dependencies:
+```bash
+cd python-service
+pip install -r requirements.txt
+```
+
+2. Start Python service:
+```bash
+python analyze.py  # Runs on http://localhost:8000
+```
+
+3. Enable in your app:
+```tsx
+<VoiceChat character={char} enableAnalysis={true} />
+```
+
+### What It Analyzes
+
+- **Fluency**: Speech rate, articulation, pause patterns
+- **Confidence**: Voice intensity, pitch stability, voice quality
+- **Arabic Filler Words**: يعني، وﷲ، اه، etc.
+
+### Technology Stack
+
+- **Parselmouth**: Python interface to Praat for acoustic analysis
+- **FastAPI**: Python API service
+- **Praat**: Industry-standard phonetics software
+
+### Analysis Metrics
+
+- Pitch (F0), Intensity (dB), Voice Quality (HNR, jitter, shimmer)
+- Speech rate, articulation rate, pause ratio
+- Confidence score (0-100), Fluency score (0-100)

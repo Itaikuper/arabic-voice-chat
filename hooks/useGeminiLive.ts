@@ -12,6 +12,7 @@ import {
   AUDIO_WORKLET_CODE,
 } from '@/lib/audio/audioUtils';
 import { Character, getDefaultCharacter } from '@/lib/characters';
+import { SpeechAnalysisResult } from '@/lib/audio/speechAnalysis';
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 
@@ -26,6 +27,9 @@ interface UseGeminiLiveOptions {
   onTranscript?: (text: string) => void;
   onError?: (error: Error) => void;
   onUsageUpdate?: (metrics: UsageMetrics) => void;
+  onAnalysisResult?: (result: SpeechAnalysisResult) => void;
+  enableAnalysis?: boolean; // Enable speech analysis feature
+  analysisIntervalSeconds?: number; // How often to analyze (default: 10 seconds)
 }
 
 export function useGeminiLive({
@@ -34,6 +38,9 @@ export function useGeminiLive({
   onTranscript,
   onError,
   onUsageUpdate,
+  onAnalysisResult,
+  enableAnalysis = false,
+  analysisIntervalSeconds = 10,
 }: UseGeminiLiveOptions) {
   const [status, setStatus] = useState<ConnectionStatus>('disconnected');
   const [isRecording, setIsRecording] = useState(false);
@@ -53,6 +60,101 @@ export function useGeminiLive({
   const outputAudioStartRef = useRef<number>(0);
   const totalInputSecondsRef = useRef<number>(0);
   const totalOutputSecondsRef = useRef<number>(0);
+
+  // Audio analysis refs
+  const audioBufferRef = useRef<Float32Array[]>([]);
+  const analysisTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isAnalyzingRef = useRef(false);
+
+  /**
+   * Analyze buffered audio
+   */
+  const analyzeBufferedAudio = useCallback(async () => {
+    if (!enableAnalysis || isAnalyzingRef.current || audioBufferRef.current.length === 0) {
+      return;
+    }
+
+    try {
+      isAnalyzingRef.current = true;
+
+      // Concatenate all buffered audio chunks
+      const totalLength = audioBufferRef.current.reduce((sum, chunk) => sum + chunk.length, 0);
+      const combinedAudio = new Float32Array(totalLength);
+
+      let offset = 0;
+      for (const chunk of audioBufferRef.current) {
+        combinedAudio.set(chunk, offset);
+        offset += chunk.length;
+      }
+
+      // Clear buffer after combining
+      audioBufferRef.current = [];
+
+      // Convert Float32Array to WAV blob
+      const wavBlob = createWavBlob(combinedAudio, 48000);
+
+      // Send to analysis API
+      const formData = new FormData();
+      formData.append('file', wavBlob, 'audio.wav');
+
+      const response = await fetch('/api/analyze', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && onAnalysisResult) {
+          onAnalysisResult(data.results);
+        }
+      } else {
+        console.warn('Speech analysis failed:', await response.text());
+      }
+    } catch (error) {
+      console.error('Error analyzing speech:', error);
+    } finally {
+      isAnalyzingRef.current = false;
+    }
+  }, [enableAnalysis, onAnalysisResult]);
+
+  /**
+   * Create WAV blob from Float32Array audio data
+   */
+  const createWavBlob = (audioData: Float32Array, sampleRate: number): Blob => {
+    const numChannels = 1;
+    const bitsPerSample = 16;
+    const bytesPerSample = bitsPerSample / 8;
+    const blockAlign = numChannels * bytesPerSample;
+
+    // Convert Float32 to Int16
+    const int16Data = float32To16BitPCM(audioData);
+
+    // Create WAV header
+    const wavHeader = new ArrayBuffer(44);
+    const view = new DataView(wavHeader);
+
+    // "RIFF" chunk descriptor
+    view.setUint32(0, 0x52494646, false); // "RIFF"
+    view.setUint32(4, 36 + int16Data.byteLength, true); // File size - 8
+    view.setUint32(8, 0x57415645, false); // "WAVE"
+
+    // "fmt " sub-chunk
+    view.setUint32(12, 0x666d7420, false); // "fmt "
+    view.setUint32(16, 16, true); // Subchunk1Size (16 for PCM)
+    view.setUint16(20, 1, true); // AudioFormat (1 for PCM)
+    view.setUint16(22, numChannels, true); // NumChannels
+    view.setUint32(24, sampleRate, true); // SampleRate
+    view.setUint32(28, sampleRate * blockAlign, true); // ByteRate
+    view.setUint16(32, blockAlign, true); // BlockAlign
+    view.setUint16(34, bitsPerSample, true); // BitsPerSample
+
+    // "data" sub-chunk
+    view.setUint32(36, 0x64617461, false); // "data"
+    view.setUint32(40, int16Data.byteLength, true); // Subchunk2Size
+
+    // Combine header and audio data
+    return new Blob([wavHeader, int16Data.buffer as ArrayBuffer], { type: 'audio/wav' });
+  };
 
   /**
    * Fetch ephemeral token from backend
@@ -226,6 +328,11 @@ export function useGeminiLive({
         if (event.data.type === 'audio' && sessionRef.current) {
           const audioData = event.data.data as Float32Array;
 
+          // Buffer audio for analysis if enabled
+          if (enableAnalysis) {
+            audioBufferRef.current.push(new Float32Array(audioData));
+          }
+
           // Calculate duration of this audio chunk
           const chunkDurationSeconds = audioData.length / 48000;
           totalInputSecondsRef.current += chunkDurationSeconds;
@@ -263,19 +370,39 @@ export function useGeminiLive({
 
       setIsRecording(true);
       console.log('🎤 Recording started');
+
+      // Start periodic analysis if enabled
+      if (enableAnalysis) {
+        analysisTimerRef.current = setInterval(() => {
+          analyzeBufferedAudio();
+        }, analysisIntervalSeconds * 1000);
+        console.log(`🔬 Speech analysis enabled (interval: ${analysisIntervalSeconds}s)`);
+      }
     } catch (error) {
       console.error('Failed to start recording:', error);
       if (onError) {
         onError(error as Error);
       }
     }
-  }, [connect, onError]);
+  }, [connect, onError, enableAnalysis, analysisIntervalSeconds, analyzeBufferedAudio]);
 
   /**
    * Stop recording audio
    */
   const stopRecording = useCallback(() => {
     try {
+      // Stop analysis timer
+      if (analysisTimerRef.current) {
+        clearInterval(analysisTimerRef.current);
+        analysisTimerRef.current = null;
+        console.log('🔬 Speech analysis stopped');
+      }
+
+      // Analyze any remaining buffered audio
+      if (enableAnalysis && audioBufferRef.current.length > 0) {
+        analyzeBufferedAudio();
+      }
+
       // Stop all audio tracks
       if (mediaStreamRef.current) {
         mediaStreamRef.current.getTracks().forEach((track) => track.stop());
@@ -299,7 +426,7 @@ export function useGeminiLive({
     } catch (error) {
       console.error('Failed to stop recording:', error);
     }
-  }, []);
+  }, [enableAnalysis, analyzeBufferedAudio]);
 
   /**
    * Disconnect from Gemini Live API
