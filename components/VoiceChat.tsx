@@ -200,61 +200,79 @@ export function VoiceChat({ character, onBack, enableAnalysis = false }: VoiceCh
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-8 bg-gradient-to-b from-gray-50 to-gray-100">
-      <div className="w-full max-w-2xl bg-white rounded-2xl shadow-xl p-8">
-        {/* Header with Character Info */}
-        <div className="text-center mb-8">
-          {/* Character Image or Avatar */}
-          {character.image ? (
-            <div className="w-32 h-32 mx-auto mb-4 relative overflow-hidden rounded-full border-4 border-gray-200 shadow-lg">
-              <img
-                src={character.image}
-                alt={character.name}
-                className="w-full h-full object-cover"
-              />
-            </div>
-          ) : (
-            <div className="text-6xl mb-3">{character.avatar}</div>
-          )}
-          <h1 className="text-4xl font-bold text-gray-800 mb-1">
+    <div
+      className="flex flex-col items-center justify-center min-h-screen relative overflow-hidden"
+      style={{
+        backgroundImage: 'url(/background.png)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+      }}
+    >
+      {/* Dark overlay for better contrast */}
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+
+      {/* Large character image - interrogation style */}
+      {character.image && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="w-full max-w-4xl h-[70vh] relative">
+            <img
+              src={character.image}
+              alt={character.name}
+              className="w-full h-full object-contain drop-shadow-2xl opacity-90"
+              style={{
+                filter: 'contrast(1.1) brightness(0.95)',
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* UI Container - positioned at bottom */}
+      <div className="relative z-10 w-full max-w-5xl px-8 pb-8 mt-auto">
+        {/* Character Info Header - compact at top */}
+        <div className="text-center mb-6 bg-black/60 backdrop-blur-md rounded-2xl p-4 border border-white/10">
+          <h1 className="text-3xl font-bold text-white mb-1 drop-shadow-lg">
             {character.name}
           </h1>
-          <p className="text-2xl text-gray-600 mb-3" dir="rtl">
+          <p className="text-xl text-gray-200 mb-2" dir="rtl">
             {character.nameArabic}
           </p>
-          <p className="text-gray-500 text-sm">
+          <p className="text-gray-300 text-sm">
             {character.description}
           </p>
         </div>
 
-        {/* Status Indicator */}
-        <div className="flex items-center justify-center gap-3 mb-8">
-          <div className={`w-3 h-3 rounded-full ${getStatusColor()}`} />
-          <span className="text-sm font-medium text-gray-700">{getStatusText()}</span>
-        </div>
-
-        {/* Audio Player */}
-        <div className="flex justify-center mb-8">
-          <AudioPlayer />
-        </div>
-
-        {/* Chat Meter */}
-        <div className="mb-8">
-          <ChatMeter
-            inputSeconds={usageMetrics.inputSeconds}
-            outputSeconds={usageMetrics.outputSeconds}
-          />
-        </div>
-
-        {/* Fluency Meter - Show when analysis is enabled and we have results */}
-        {enableAnalysis && analysisResult && (
-          <div className="mb-8">
-            <FluencyMeter result={analysisResult} transcript={fullTranscript} />
+        {/* Main controls container with dark glass effect */}
+        <div className="bg-black/70 backdrop-blur-xl rounded-2xl p-6 border border-white/10 shadow-2xl">
+          {/* Status Indicator */}
+          <div className="flex items-center justify-center gap-3 mb-6">
+            <div className={`w-3 h-3 rounded-full ${getStatusColor()} shadow-lg`} />
+            <span className="text-sm font-medium text-gray-200">{getStatusText()}</span>
           </div>
-        )}
 
-        {/* Recording Controls */}
-        <div className="flex flex-col items-center gap-4 mb-8">
+          {/* Audio Player */}
+          <div className="flex justify-center mb-6">
+            <AudioPlayer />
+          </div>
+
+          {/* Chat Meter */}
+          <div className="mb-6">
+            <ChatMeter
+              inputSeconds={usageMetrics.inputSeconds}
+              outputSeconds={usageMetrics.outputSeconds}
+            />
+          </div>
+
+          {/* Fluency Meter - Show when analysis is enabled and we have results */}
+          {enableAnalysis && analysisResult && (
+            <div className="mb-6">
+              <FluencyMeter result={analysisResult} transcript={fullTranscript} />
+            </div>
+          )}
+
+          {/* Recording Controls */}
+          <div className="flex flex-col items-center gap-4 mb-6">
           {!isRecording ? (
             <button
               onClick={handleStart}
@@ -284,17 +302,17 @@ export function VoiceChat({ character, onBack, enableAnalysis = false }: VoiceCh
             </button>
           )}
 
-          <p className="text-sm text-gray-600 text-center">
+          <p className="text-sm text-gray-300 text-center">
             {isRecording ? 'Click to stop recording' : 'Click to start conversation'}
           </p>
         </div>
 
         {/* Error Display */}
         {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <div className="mb-6 p-4 bg-red-900/80 border border-red-500/50 rounded-lg backdrop-blur-sm">
             <div className="flex items-start gap-3">
               <svg
-                className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5"
+                className="w-5 h-5 text-red-300 flex-shrink-0 mt-0.5"
                 fill="currentColor"
                 viewBox="0 0 20 20"
               >
@@ -305,8 +323,8 @@ export function VoiceChat({ character, onBack, enableAnalysis = false }: VoiceCh
                 />
               </svg>
               <div>
-                <h3 className="text-sm font-medium text-red-800">Error</h3>
-                <p className="text-sm text-red-700 mt-1">{error}</p>
+                <h3 className="text-sm font-medium text-red-200">Error</h3>
+                <p className="text-sm text-red-100 mt-1">{error}</p>
               </div>
             </div>
           </div>
@@ -314,27 +332,27 @@ export function VoiceChat({ character, onBack, enableAnalysis = false }: VoiceCh
 
         {/* Conversation Transcript Display */}
         {conversationHistory.length > 0 && (
-          <div className="mt-8 p-4 bg-gray-50 rounded-lg max-h-96 overflow-y-auto">
-            <h3 className="text-sm font-semibold text-gray-700 mb-3">Conversation Transcript</h3>
+          <div className="mt-6 p-4 bg-black/50 backdrop-blur-md rounded-lg max-h-96 overflow-y-auto border border-white/10">
+            <h3 className="text-sm font-semibold text-gray-200 mb-3">Conversation Transcript</h3>
             <div className="space-y-3">
               {conversationHistory.map((turn, index) => (
                 <div
                   key={index}
-                  className={`p-3 rounded-lg ${
+                  className={`p-3 rounded-lg backdrop-blur-sm ${
                     turn.speaker === 'user'
-                      ? 'bg-blue-100 border-l-4 border-blue-500'
-                      : 'bg-green-100 border-l-4 border-green-500'
+                      ? 'bg-blue-900/50 border-l-4 border-blue-400'
+                      : 'bg-green-900/50 border-l-4 border-green-400'
                   }`}
                 >
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xs font-semibold text-gray-700">
+                    <span className="text-xs font-semibold text-gray-200">
                       {turn.speaker === 'user' ? 'You (U)' : `${character.name} (${character.name.charAt(0)})`}
                     </span>
-                    <span className="text-xs text-gray-500">
+                    <span className="text-xs text-gray-400">
                       {turn.timestamp.toLocaleTimeString()}
                     </span>
                   </div>
-                  <p className="text-sm text-gray-800" dir="auto">
+                  <p className="text-sm text-gray-100" dir="auto">
                     {turn.text}
                   </p>
                 </div>
@@ -344,23 +362,23 @@ export function VoiceChat({ character, onBack, enableAnalysis = false }: VoiceCh
         )}
 
         {/* Instructions */}
-        <div className="mt-8 pt-8 border-t border-gray-200">
-          <h3 className="text-sm font-semibold text-gray-700 mb-3">Instructions:</h3>
-          <ul className="text-sm text-gray-600 space-y-2">
+        <div className="mt-6 pt-6 border-t border-white/10">
+          <h3 className="text-sm font-semibold text-gray-200 mb-3">Instructions:</h3>
+          <ul className="text-sm text-gray-300 space-y-2">
             <li className="flex items-start gap-2">
-              <span className="text-blue-500 mt-0.5">•</span>
+              <span className="text-blue-400 mt-0.5">•</span>
               <span>Click the microphone button to start speaking</span>
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-blue-500 mt-0.5">•</span>
+              <span className="text-blue-400 mt-0.5">•</span>
               <span>Speak naturally in Palestinian Arabic dialect</span>
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-blue-500 mt-0.5">•</span>
+              <span className="text-blue-400 mt-0.5">•</span>
               <span>The AI will respond in spoken Arabic through your speakers</span>
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-blue-500 mt-0.5">•</span>
+              <span className="text-blue-400 mt-0.5">•</span>
               <span>Click the stop button when you're done speaking</span>
             </li>
           </ul>
@@ -465,8 +483,8 @@ export function VoiceChat({ character, onBack, enableAnalysis = false }: VoiceCh
 
             {/* Generated Transcript Display */}
             {generatedTranscript && (
-              <div className="mt-4 p-6 bg-gradient-to-br from-purple-50 to-indigo-50 rounded-lg border-2 border-purple-200">
-                <h3 className="text-lg font-bold text-purple-900 mb-4 flex items-center gap-2">
+              <div className="mt-4 p-6 bg-gradient-to-br from-purple-900/80 to-indigo-900/80 backdrop-blur-md rounded-lg border-2 border-purple-500/30">
+                <h3 className="text-lg font-bold text-purple-100 mb-4 flex items-center gap-2">
                   <svg
                     className="w-6 h-6"
                     fill="none"
@@ -482,17 +500,18 @@ export function VoiceChat({ character, onBack, enableAnalysis = false }: VoiceCh
                   </svg>
                   Complete Conversation Transcript
                 </h3>
-                <div className="p-4 bg-white rounded-lg shadow-inner max-h-96 overflow-y-auto whitespace-pre-wrap font-mono text-sm" dir="auto">
+                <div className="p-4 bg-black/40 rounded-lg shadow-inner max-h-96 overflow-y-auto whitespace-pre-wrap font-mono text-sm text-gray-200" dir="auto">
                   {generatedTranscript}
                 </div>
               </div>
             )}
           </div>
         </div>
+        </div>
       </div>
 
       {/* Footer */}
-      <div className="mt-8 text-center text-sm text-gray-500">
+      <div className="relative z-10 mt-4 pb-4 text-center text-sm text-gray-400">
         <p>Powered by Google Gemini 2.5 Flash Native Audio</p>
       </div>
 
