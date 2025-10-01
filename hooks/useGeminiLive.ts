@@ -21,6 +21,12 @@ export interface UsageMetrics {
   outputSeconds: number;
 }
 
+export interface ConversationTurn {
+  speaker: 'user' | 'ai';
+  text: string;
+  timestamp: Date;
+}
+
 interface UseGeminiLiveOptions {
   character?: Character;
   onAudioData: (audioData: string) => void;
@@ -44,6 +50,7 @@ export function useGeminiLive({
 }: UseGeminiLiveOptions) {
   const [status, setStatus] = useState<ConnectionStatus>('disconnected');
   const [isRecording, setIsRecording] = useState(false);
+  const [conversationHistory, setConversationHistory] = useState<ConversationTurn[]>([]);
 
   // Refs to maintain state across renders
   const sessionRef = useRef<any>(null);
@@ -65,6 +72,13 @@ export function useGeminiLive({
   const audioBufferRef = useRef<Float32Array[]>([]);
   const analysisTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isAnalyzingRef = useRef(false);
+  const analysisServiceAvailableRef = useRef<boolean | null>(null);
+
+  // Audio recording refs for transcription
+  const userAudioChunksRef = useRef<Float32Array[]>([]);
+  const aiAudioChunksRef = useRef<Int16Array[]>([]);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
 
   /**
    * Analyze buffered audio
@@ -75,6 +89,26 @@ export function useGeminiLive({
     }
 
     try {
+      // Check analysis service availability lazily once
+      if (analysisServiceAvailableRef.current === null) {
+        try {
+          const health = await fetch('/api/analyze', { method: 'GET' });
+          analysisServiceAvailableRef.current = health.ok;
+          if (!health.ok) {
+            console.warn('Speech analysis unavailable; skipping analysis this session');
+            return;
+          }
+        } catch {
+          analysisServiceAvailableRef.current = false;
+          console.warn('Speech analysis unreachable; skipping analysis this session');
+          return;
+        }
+      }
+
+      if (!analysisServiceAvailableRef.current) {
+        return;
+      }
+
       isAnalyzingRef.current = true;
 
       // Concatenate all buffered audio chunks
@@ -108,10 +142,17 @@ export function useGeminiLive({
           onAnalysisResult(data.results);
         }
       } else {
-        console.warn('Speech analysis failed:', await response.text());
+        const txt = await response.text();
+        console.warn('Speech analysis failed:', txt);
+        // If service reports unavailable, disable for the rest of session
+        if (response.status === 503) {
+          analysisServiceAvailableRef.current = false;
+        }
       }
     } catch (error) {
       console.error('Error analyzing speech:', error);
+      // Network-level failure: disable further attempts this session
+      analysisServiceAvailableRef.current = false;
     } finally {
       isAnalyzingRef.current = false;
     }
@@ -208,8 +249,11 @@ export function useGeminiLive({
 
       // Configuration for Palestinian Arabic conversation with character personality
       // Note: systemInstruction and voiceName are locked in the ephemeral token
+      // IMPORTANT: We need both AUDIO and TEXT modalities to get transcription
       const config = {
-        responseModalities: [Modality.AUDIO],
+        responseModalities: [Modality.AUDIO, Modality.TEXT],
+        inputAudioTranscription: {}, // Enable user speech transcription
+        outputAudioTranscription: {}, // Enable AI speech transcription
       };
 
       // Create Live API session
@@ -223,6 +267,9 @@ export function useGeminiLive({
           onmessage: (message: any) => {
             responseQueueRef.current.push(message);
 
+            // Debug: Log full message structure
+            console.log('📨 Full message:', JSON.stringify(message, null, 2));
+
             // Process audio data
             if (message.data) {
               onAudioData(message.data);
@@ -234,6 +281,15 @@ export function useGeminiLive({
                 const bytesLength = binaryString.length;
                 const samplesCount = bytesLength / 2; // 16-bit = 2 bytes per sample
                 const durationSeconds = samplesCount / 24000; // 24kHz output
+
+                // Store AI audio for transcription (decode base64 to Int16Array)
+                const int16Array = new Int16Array(samplesCount);
+                for (let i = 0; i < samplesCount; i++) {
+                  const byte1 = binaryString.charCodeAt(i * 2);
+                  const byte2 = binaryString.charCodeAt(i * 2 + 1);
+                  int16Array[i] = byte1 | (byte2 << 8);
+                }
+                aiAudioChunksRef.current.push(int16Array);
 
                 totalOutputSecondsRef.current += durationSeconds;
 
@@ -249,13 +305,55 @@ export function useGeminiLive({
               }
             }
 
-            // Process text transcript if available
-            if (message.serverContent?.modelTurn?.parts) {
+            // Capture input transcription (user speech) - from native API
+            if (message.serverContent?.inputTranscription?.text) {
+              const userText = message.serverContent.inputTranscription.text;
+              console.log('📝 User transcript (native):', userText);
+              setConversationHistory((prev) => [
+                ...prev,
+                {
+                  speaker: 'user',
+                  text: userText,
+                  timestamp: new Date(),
+                },
+              ]);
+            }
+
+            // Capture output transcription (AI speech) - try native first, fallback to text parts
+            if (message.serverContent?.outputTranscription?.text) {
+              const aiText = message.serverContent.outputTranscription.text;
+              console.log('📝 AI transcript (native):', aiText);
+              setConversationHistory((prev) => [
+                ...prev,
+                {
+                  speaker: 'ai',
+                  text: aiText,
+                  timestamp: new Date(),
+                },
+              ]);
+              // Also call the legacy callback
+              if (onTranscript) {
+                onTranscript(aiText);
+              }
+            } else if (message.serverContent?.modelTurn?.parts) {
+              // Fallback: Use text from modelTurn parts when native transcription unavailable
               const textPart = message.serverContent.modelTurn.parts.find(
                 (part: any) => part.text
               );
-              if (textPart?.text && onTranscript) {
-                onTranscript(textPart.text);
+              if (textPart?.text) {
+                console.log('📝 AI transcript (fallback from text parts):', textPart.text);
+                setConversationHistory((prev) => [
+                  ...prev,
+                  {
+                    speaker: 'ai',
+                    text: textPart.text,
+                    timestamp: new Date(),
+                  },
+                ]);
+                // Also call the legacy callback
+                if (onTranscript) {
+                  onTranscript(textPart.text);
+                }
               }
             }
           },
@@ -328,6 +426,9 @@ export function useGeminiLive({
         if (event.data.type === 'audio' && sessionRef.current) {
           const audioData = event.data.data as Float32Array;
 
+          // Store user audio for transcription
+          userAudioChunksRef.current.push(new Float32Array(audioData));
+
           // Buffer audio for analysis if enabled
           if (enableAnalysis) {
             audioBufferRef.current.push(new Float32Array(audioData));
@@ -371,12 +472,14 @@ export function useGeminiLive({
       setIsRecording(true);
       console.log('🎤 Recording started');
 
-      // Start periodic analysis if enabled
+      // Start periodic analysis if enabled and available
       if (enableAnalysis) {
+        // Reset availability for new session; will be checked lazily
+        analysisServiceAvailableRef.current = null;
         analysisTimerRef.current = setInterval(() => {
           analyzeBufferedAudio();
         }, analysisIntervalSeconds * 1000);
-        console.log(`🔬 Speech analysis enabled (interval: ${analysisIntervalSeconds}s)`);
+        console.log(`🔬 Speech analysis scheduled (interval: ${analysisIntervalSeconds}s)`);
       }
     } catch (error) {
       console.error('Failed to start recording:', error);
@@ -441,6 +544,141 @@ export function useGeminiLive({
 
     setStatus('disconnected');
   }, [stopRecording]);
+
+  /**
+   * Clear conversation history
+   */
+  const clearConversationHistory = useCallback(() => {
+    setConversationHistory([]);
+  }, []);
+
+  /**
+   * Generate formatted transcript from conversation history
+   */
+  const generateTranscript = useCallback(() => {
+    console.log('📝 Formatting conversation transcript...');
+
+    if (conversationHistory.length === 0) {
+      return 'No conversation to transcribe.';
+    }
+
+    // Use dynamic character name and initial (fallback to AI/A)
+    const aiName = (character?.name || 'AI').trim();
+    const aiInitial = aiName.charAt(0) || 'A';
+
+    // Format the conversation history in the requested style:
+    // User (U): ...\nName (N): ...
+    let transcript = '';
+
+    conversationHistory.forEach((turn) => {
+      const label = turn.speaker === 'user' ? 'User (U)' : `${aiName} (${aiInitial})`;
+      transcript += `${label}: ${turn.text}\n`;
+    });
+
+    console.log('✅ Transcript formatted successfully');
+    return transcript;
+  }, [conversationHistory, character]);
+
+  /**
+   * Generate high-fidelity transcript by uploading recorded audio to backend
+   * Falls back to quick transcript if audio is missing
+   */
+  const generateHighFidelityTranscript = useCallback(async (): Promise<string> => {
+    try {
+      // Combine user audio chunks (Float32 @ 48k) -> WAV
+      let userBlob: Blob | null = null;
+      if (userAudioChunksRef.current.length > 0) {
+        const total = userAudioChunksRef.current.reduce((s, c) => s + c.length, 0);
+        const combined = new Float32Array(total);
+        let off = 0;
+        for (const chunk of userAudioChunksRef.current) {
+          combined.set(chunk, off);
+          off += chunk.length;
+        }
+        userBlob = createWavBlob(combined, 48000);
+      }
+
+      // Combine AI audio chunks (Int16 @ 24k) -> WAV
+      let aiBlob: Blob | null = null;
+      if (aiAudioChunksRef.current.length > 0) {
+        const totalSamples = aiAudioChunksRef.current.reduce((s, c) => s + c.length, 0);
+        const combined = new Int16Array(totalSamples);
+        let off = 0;
+        for (const chunk of aiAudioChunksRef.current) {
+          combined.set(chunk, off);
+          off += chunk.length;
+        }
+        aiBlob = createWavFromInt16(combined, 24000);
+      }
+
+      if (!userBlob && !aiBlob) {
+        return 'No audio captured to transcribe.';
+      }
+
+      const form = new FormData();
+      if (userBlob) form.append('userAudio', userBlob, 'user.wav');
+      if (aiBlob) form.append('aiAudio', aiBlob, 'ai.wav');
+
+      const resp = await fetch('/api/transcribe', { method: 'POST', body: form });
+      if (!resp.ok) {
+        const txt = await resp.text();
+        throw new Error(`Transcription failed: ${resp.status} ${txt}`);
+      }
+      const data = await resp.json();
+      const text = data?.transcript || '';
+      return text || 'No transcript generated';
+    } catch (e) {
+      console.error('High-fidelity transcription error:', e);
+      return 'Transcription service unavailable. Try the quick transcript.';
+    }
+  }, []);
+
+  /**
+   * Generate transcript with fallback: use quick history; if empty, use high-fidelity
+   */
+  const generateTranscriptAuto = useCallback(async (): Promise<string> => {
+    const quick = generateTranscript();
+    if (quick && quick.trim() && quick !== 'No conversation to transcribe.') {
+      return quick;
+    }
+    return await generateHighFidelityTranscript();
+  }, [generateTranscript, generateHighFidelityTranscript]);
+
+  /**
+   * Create WAV blob from Int16Array audio data
+   */
+  const createWavFromInt16 = (audioData: Int16Array, sampleRate: number): Blob => {
+    const numChannels = 1;
+    const bitsPerSample = 16;
+    const bytesPerSample = bitsPerSample / 8;
+    const blockAlign = numChannels * bytesPerSample;
+
+    // Create WAV header
+    const wavHeader = new ArrayBuffer(44);
+    const view = new DataView(wavHeader);
+
+    // "RIFF" chunk descriptor
+    view.setUint32(0, 0x52494646, false); // "RIFF"
+    view.setUint32(4, 36 + audioData.byteLength, true); // File size - 8
+    view.setUint32(8, 0x57415645, false); // "WAVE"
+
+    // "fmt " sub-chunk
+    view.setUint32(12, 0x666d7420, false); // "fmt "
+    view.setUint32(16, 16, true); // Subchunk1Size (16 for PCM)
+    view.setUint16(20, 1, true); // AudioFormat (1 for PCM)
+    view.setUint16(22, numChannels, true); // NumChannels
+    view.setUint32(24, sampleRate, true); // SampleRate
+    view.setUint32(28, sampleRate * blockAlign, true); // ByteRate
+    view.setUint16(32, blockAlign, true); // BlockAlign
+    view.setUint16(34, bitsPerSample, true); // BitsPerSample
+
+    // "data" sub-chunk
+    view.setUint32(36, 0x64617461, false); // "data"
+    view.setUint32(40, audioData.byteLength, true); // Subchunk2Size
+
+    // Combine header and audio data
+    return new Blob([wavHeader, audioData.buffer as ArrayBuffer], { type: 'audio/wav' });
+  };
 
   /**
    * Refresh ephemeral token and reconnect
@@ -515,5 +753,9 @@ export function useGeminiLive({
     startRecording,
     stopRecording,
     refreshToken,
+    conversationHistory,
+    clearConversationHistory,
+    generateTranscript,
+    generateTranscriptAuto,
   };
 }

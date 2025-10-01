@@ -23,7 +23,11 @@
       "Bash(timeout:*)",
       "Bash(start /B \"./venv/Scripts/python.exe\":*)",
       "Bash(\"./venv/Scripts/python.exe\" test_analysis.py)",
-      "Bash(\"./venv/Scripts/python.exe\" test_simple.py)"
+      "Bash(\"./venv/Scripts/python.exe\" test_simple.py)",
+      "Bash(cat:*)",
+      "Bash(git push:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nAdd live conversation transcript with download functionality\n\n- Capture real-time transcripts from Gemini native audio API\n- Display conversation history with chronological order (User/AI turns)\n- Generate and download formatted transcript as text file\n- Enable both TEXT and AUDIO modalities for reliable transcription\n- Add speech analysis service availability check to prevent errors\n- Store user/AI audio chunks for potential high-fidelity re-transcription fallback\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
     ],
     "deny": [],
     "ask": []

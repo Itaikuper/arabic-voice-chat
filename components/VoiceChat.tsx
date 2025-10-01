@@ -33,6 +33,8 @@ export function VoiceChat({ character, onBack, enableAnalysis = false }: VoiceCh
   const [analysisHistory, setAnalysisHistory] = useState<SpeechAnalysisResult[]>([]);
   const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null);
   const [showReport, setShowReport] = useState(false);
+  const [generatedTranscript, setGeneratedTranscript] = useState<string>('');
+  const [isGeneratingTranscript, setIsGeneratingTranscript] = useState(false);
 
   // Handle audio data from Gemini
   const handleAudioData = useCallback((audioData: string) => {
@@ -67,17 +69,27 @@ export function VoiceChat({ character, onBack, enableAnalysis = false }: VoiceCh
   }, []);
 
   // Initialize Gemini Live
-  const { status, isRecording, connect, disconnect, startRecording, stopRecording } =
-    useGeminiLive({
-      character,
-      onAudioData: handleAudioData,
-      onTranscript: handleTranscript,
-      onError: handleError,
-      onUsageUpdate: handleUsageUpdate,
-      onAnalysisResult: handleAnalysisResult,
-      enableAnalysis,
-      analysisIntervalSeconds: 10,
-    });
+  const {
+    status,
+    isRecording,
+    connect,
+    disconnect,
+    startRecording,
+    stopRecording,
+    conversationHistory,
+    clearConversationHistory,
+    generateTranscript,
+    generateTranscriptAuto,
+  } = useGeminiLive({
+    character,
+    onAudioData: handleAudioData,
+    onTranscript: handleTranscript,
+    onError: handleError,
+    onUsageUpdate: handleUsageUpdate,
+    onAnalysisResult: handleAnalysisResult,
+    enableAnalysis,
+    analysisIntervalSeconds: 10,
+  });
 
   // Get audio player instance
   useEffect(() => {
@@ -124,6 +136,39 @@ export function VoiceChat({ character, onBack, enableAnalysis = false }: VoiceCh
     setSessionStartTime(null);
     setFullTranscript('');
     setTranscript([]);
+    clearConversationHistory();
+    setGeneratedTranscript('');
+  };
+
+  // Generate transcript from conversation history
+  const handleGenerateTranscript = async () => {
+    setIsGeneratingTranscript(true);
+    try {
+      // Auto mode: prefer quick live history; fallback to high-fidelity re-transcription
+      const transcript = await generateTranscriptAuto();
+      if (transcript) {
+        setGeneratedTranscript(transcript);
+      } else {
+        setError('Failed to generate transcript');
+      }
+    } catch (err) {
+      setError('Error generating transcript: ' + String(err));
+    } finally {
+      setIsGeneratingTranscript(false);
+    }
+  };
+
+  // Download transcript as text file
+  const handleDownloadTranscript = () => {
+    const blob = new Blob([generatedTranscript], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `conversation-transcript-${new Date().toISOString().slice(0, 10)}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   // Get status color
@@ -256,15 +301,32 @@ export function VoiceChat({ character, onBack, enableAnalysis = false }: VoiceCh
           </div>
         )}
 
-        {/* Transcript Display */}
-        {transcript.length > 0 && (
-          <div className="mt-8 p-4 bg-gray-50 rounded-lg max-h-64 overflow-y-auto">
-            <h3 className="text-sm font-semibold text-gray-700 mb-2">Transcript</h3>
-            <div className="space-y-2">
-              {transcript.map((text, index) => (
-                <p key={index} className="text-sm text-gray-600">
-                  {text}
-                </p>
+        {/* Conversation Transcript Display */}
+        {conversationHistory.length > 0 && (
+          <div className="mt-8 p-4 bg-gray-50 rounded-lg max-h-96 overflow-y-auto">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3">Conversation Transcript</h3>
+            <div className="space-y-3">
+              {conversationHistory.map((turn, index) => (
+                <div
+                  key={index}
+                  className={`p-3 rounded-lg ${
+                    turn.speaker === 'user'
+                      ? 'bg-blue-100 border-l-4 border-blue-500'
+                      : 'bg-green-100 border-l-4 border-green-500'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-semibold text-gray-700">
+                      {turn.speaker === 'user' ? 'You (U)' : `${character.name} (${character.name.charAt(0)})`}
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      {turn.timestamp.toLocaleTimeString()}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-800" dir="auto">
+                    {turn.text}
+                  </p>
+                </div>
               ))}
             </div>
           </div>
@@ -293,52 +355,126 @@ export function VoiceChat({ character, onBack, enableAnalysis = false }: VoiceCh
           </ul>
 
           {/* Action Buttons */}
-          <div className="mt-6 flex gap-3 justify-center">
-            {/* End Session & Show Report Button */}
-            {enableAnalysis && analysisHistory.length > 0 && (
-              <button
-                onClick={handleEndSession}
-                className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-medium rounded-lg transition-all duration-200 shadow-lg"
-              >
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
+          <div className="mt-6 flex flex-col gap-3">
+            <div className="flex gap-3 justify-center flex-wrap">
+              {/* Generate Transcript Button */}
+              {usageMetrics.inputSeconds > 0 && !isRecording && (
+                <button
+                  onClick={handleGenerateTranscript}
+                  disabled={isGeneratingTranscript}
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 disabled:from-gray-400 disabled:to-gray-500 text-white font-medium rounded-lg transition-all duration-200 shadow-lg disabled:cursor-not-allowed"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                  />
-                </svg>
-                View Session Report
-              </button>
-            )}
+                  <svg
+                    className={`w-5 h-5 ${isGeneratingTranscript ? 'animate-spin' : ''}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    />
+                  </svg>
+                  {isGeneratingTranscript ? 'Generating...' : 'Generate Transcript'}
+                </button>
+              )}
 
-            {/* Change Character Button */}
-            {onBack && (
-              <button
-                onClick={onBack}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm font-medium rounded-lg transition-all duration-200"
-                aria-label="Change character"
-              >
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
+              {/* Download Transcript Button */}
+              {generatedTranscript && (
+                <button
+                  onClick={handleDownloadTranscript}
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white font-medium rounded-lg transition-all duration-200 shadow-lg"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M10 19l-7-7m0 0l7-7m-7 7h18"
-                  />
-                </svg>
-                Change Character
-              </button>
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                    />
+                  </svg>
+                  Download Transcript
+                </button>
+              )}
+
+              {/* End Session & Show Report Button */}
+              {enableAnalysis && analysisHistory.length > 0 && (
+                <button
+                  onClick={handleEndSession}
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-medium rounded-lg transition-all duration-200 shadow-lg"
+                >
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                    />
+                  </svg>
+                  View Session Report
+                </button>
+              )}
+
+              {/* Change Character Button */}
+              {onBack && (
+                <button
+                  onClick={onBack}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm font-medium rounded-lg transition-all duration-200"
+                  aria-label="Change character"
+                >
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M10 19l-7-7m0 0l7-7m-7 7h18"
+                    />
+                  </svg>
+                  Change Character
+                </button>
+              )}
+            </div>
+
+            {/* Generated Transcript Display */}
+            {generatedTranscript && (
+              <div className="mt-4 p-6 bg-gradient-to-br from-purple-50 to-indigo-50 rounded-lg border-2 border-purple-200">
+                <h3 className="text-lg font-bold text-purple-900 mb-4 flex items-center gap-2">
+                  <svg
+                    className="w-6 h-6"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    />
+                  </svg>
+                  Complete Conversation Transcript
+                </h3>
+                <div className="p-4 bg-white rounded-lg shadow-inner max-h-96 overflow-y-auto whitespace-pre-wrap font-mono text-sm" dir="auto">
+                  {generatedTranscript}
+                </div>
+              </div>
             )}
           </div>
         </div>
