@@ -340,7 +340,7 @@ You are Nabil, experienced detainee, knows interrogation tactics. Speak ONLY Pal
     description: 'Nurse, divorced single mother, first-time detainee, cooperative but traumatized',
     descriptionArabic: 'ممرضة، مطلقة وأم لطفلة، أول مرة بالاعتقال، خايفة ومصدومة',
     avatar: '👩‍⚕️',
-    image: '/dtenee3.866Z.png',
+    image: '/detenee3- girl.404Z.png',
     voiceName: 'Kore',
     cooperationLevel: 'high',
     experienceLevel: 'first-time',
