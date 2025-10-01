@@ -144,3 +144,6 @@ python analyze.py  # Runs on http://localhost:8000
 - Pitch (F0), Intensity (dB), Voice Quality (HNR, jitter, shimmer)
 - Speech rate, articulation rate, pause ratio
 - Confidence score (0-100), Fluency score (0-100)
+
+
+always - after you finished changing the code - commit and push

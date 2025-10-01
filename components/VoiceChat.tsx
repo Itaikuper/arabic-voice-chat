@@ -204,7 +204,18 @@ export function VoiceChat({ character, onBack, enableAnalysis = false }: VoiceCh
       <div className="w-full max-w-2xl bg-white rounded-2xl shadow-xl p-8">
         {/* Header with Character Info */}
         <div className="text-center mb-8">
-          <div className="text-6xl mb-3">{character.avatar}</div>
+          {/* Character Image or Avatar */}
+          {character.image ? (
+            <div className="w-32 h-32 mx-auto mb-4 relative overflow-hidden rounded-full border-4 border-gray-200 shadow-lg">
+              <img
+                src={character.image}
+                alt={character.name}
+                className="w-full h-full object-cover"
+              />
+            </div>
+          ) : (
+            <div className="text-6xl mb-3">{character.avatar}</div>
+          )}
           <h1 className="text-4xl font-bold text-gray-800 mb-1">
             {character.name}
           </h1>
