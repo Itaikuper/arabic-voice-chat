@@ -35,6 +35,7 @@ export function VoiceChat({ character, onBack, enableAnalysis = false }: VoiceCh
   const [showReport, setShowReport] = useState(false);
   const [generatedTranscript, setGeneratedTranscript] = useState<string>('');
   const [isGeneratingTranscript, setIsGeneratingTranscript] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Handle audio data from Gemini
   const handleAudioData = useCallback((audioData: string) => {
@@ -201,7 +202,7 @@ export function VoiceChat({ character, onBack, enableAnalysis = false }: VoiceCh
 
   return (
     <div
-      className="flex flex-col items-center justify-center min-h-screen relative overflow-hidden"
+      className="flex min-h-screen relative overflow-hidden"
       style={{
         backgroundImage: 'url(/background.png)',
         backgroundSize: 'cover',
@@ -210,41 +211,68 @@ export function VoiceChat({ character, onBack, enableAnalysis = false }: VoiceCh
       }}
     >
       {/* Dark overlay for better contrast */}
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-black/50" />
 
-      {/* Large character image - interrogation style */}
+      {/* Large character image - full screen centered */}
       {character.image && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="w-full max-w-4xl h-[70vh] relative">
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="w-full h-full max-w-6xl relative flex items-center justify-center">
             <img
               src={character.image}
               alt={character.name}
-              className="w-full h-full object-contain drop-shadow-2xl opacity-90"
+              className="max-w-full max-h-[90vh] object-contain drop-shadow-2xl"
               style={{
-                filter: 'contrast(1.1) brightness(0.95)',
+                filter: 'contrast(1.15) brightness(0.9)',
               }}
             />
           </div>
         </div>
       )}
 
-      {/* UI Container - positioned at bottom */}
-      <div className="relative z-10 w-full max-w-5xl px-8 pb-8 mt-auto">
-        {/* Character Info Header - compact at top */}
-        <div className="text-center mb-6 bg-black/60 backdrop-blur-md rounded-2xl p-4 border border-white/10">
-          <h1 className="text-3xl font-bold text-white mb-1 drop-shadow-lg">
-            {character.name}
-          </h1>
-          <p className="text-xl text-gray-200 mb-2" dir="rtl">
-            {character.nameArabic}
-          </p>
-          <p className="text-gray-300 text-sm">
-            {character.description}
-          </p>
-        </div>
+      {/* Floating Control Button - Top Right */}
+      <button
+        onClick={() => setSidebarOpen(!sidebarOpen)}
+        className="fixed top-8 right-8 z-50 w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 shadow-2xl flex items-center justify-center transition-all duration-300 hover:scale-110"
+        aria-label={sidebarOpen ? 'Close controls' : 'Open controls'}
+      >
+        <svg
+          className="w-6 h-6 text-white transition-transform duration-300"
+          style={{ transform: sidebarOpen ? 'rotate(45deg)' : 'rotate(0deg)' }}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M12 4v16m8-8H4"
+          />
+        </svg>
+      </button>
 
-        {/* Main controls container with dark glass effect */}
-        <div className="bg-black/70 backdrop-blur-xl rounded-2xl p-6 border border-white/10 shadow-2xl">
+      {/* Character Name Overlay - Top Center */}
+      <div className="fixed top-8 left-1/2 transform -translate-x-1/2 z-40 bg-black/80 backdrop-blur-lg rounded-2xl px-8 py-4 border border-white/20 shadow-2xl">
+        <h1 className="text-3xl font-bold text-white mb-1 drop-shadow-lg text-center">
+          {character.name}
+        </h1>
+        <p className="text-lg text-gray-200 text-center" dir="rtl">
+          {character.nameArabic}
+        </p>
+      </div>
+
+      {/* Collapsible Sidebar - Right Side */}
+      <div
+        className={`fixed top-0 right-0 h-full w-full max-w-xl bg-black/90 backdrop-blur-xl border-l border-white/10 shadow-2xl z-40 transform transition-transform duration-500 ease-in-out overflow-y-auto ${
+          sidebarOpen ? 'translate-x-0' : 'translate-x-full'
+        }`}
+      >
+        <div className="p-8">
+          {/* Sidebar Header */}
+          <div className="mb-8 pb-6 border-b border-white/10">
+            <h2 className="text-2xl font-bold text-white mb-2">Interrogation Controls</h2>
+            <p className="text-gray-300 text-sm">{character.description}</p>
+          </div>
           {/* Status Indicator */}
           <div className="flex items-center justify-center gap-3 mb-6">
             <div className={`w-3 h-3 rounded-full ${getStatusColor()} shadow-lg`} />
@@ -271,43 +299,7 @@ export function VoiceChat({ character, onBack, enableAnalysis = false }: VoiceCh
             </div>
           )}
 
-          {/* Recording Controls */}
-          <div className="flex flex-col items-center gap-4 mb-6">
-          {!isRecording ? (
-            <button
-              onClick={handleStart}
-              disabled={status === 'connecting'}
-              className="group relative w-24 h-24 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 disabled:from-gray-400 disabled:to-gray-500 transition-all duration-300 shadow-lg hover:shadow-xl disabled:cursor-not-allowed"
-            >
-              <div className="absolute inset-0 rounded-full bg-white opacity-0 group-hover:opacity-20 transition-opacity" />
-              <svg
-                className="w-10 h-10 mx-auto text-white"
-                fill="currentColor"
-                viewBox="0 0 20 20"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </button>
-          ) : (
-            <button
-              onClick={handleStop}
-              className="group relative w-24 h-24 rounded-full bg-gradient-to-br from-red-500 to-pink-600 hover:from-red-600 hover:to-pink-700 transition-all duration-300 shadow-lg hover:shadow-xl animate-pulse"
-            >
-              <div className="absolute inset-0 rounded-full bg-white opacity-0 group-hover:opacity-20 transition-opacity" />
-              <div className="w-8 h-8 mx-auto bg-white rounded-sm" />
-            </button>
-          )}
-
-          <p className="text-sm text-gray-300 text-center">
-            {isRecording ? 'Click to stop recording' : 'Click to start conversation'}
-          </p>
-        </div>
-
-        {/* Error Display */}
+          {/* Error Display */}
         {error && (
           <div className="mb-6 p-4 bg-red-900/80 border border-red-500/50 rounded-lg backdrop-blur-sm">
             <div className="flex items-start gap-3">
@@ -507,12 +499,42 @@ export function VoiceChat({ character, onBack, enableAnalysis = false }: VoiceCh
             )}
           </div>
         </div>
-        </div>
       </div>
 
-      {/* Footer */}
-      <div className="relative z-10 mt-4 pb-4 text-center text-sm text-gray-400">
-        <p>Powered by Google Gemini 2.5 Flash Native Audio</p>
+      {/* Floating microphone button - Bottom Center (always visible) */}
+      <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-50 flex flex-col items-center gap-3">
+        {!isRecording ? (
+          <button
+            onClick={handleStart}
+            disabled={status === 'connecting'}
+            className="group relative w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 disabled:from-gray-400 disabled:to-gray-500 transition-all duration-300 shadow-2xl hover:shadow-blue-500/50 hover:scale-110 disabled:cursor-not-allowed"
+          >
+            <div className="absolute inset-0 rounded-full bg-white opacity-0 group-hover:opacity-20 transition-opacity" />
+            <svg
+              className="w-10 h-10 mx-auto text-white"
+              fill="currentColor"
+              viewBox="0 0 20 20"
+            >
+              <path
+                fillRule="evenodd"
+                d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </button>
+        ) : (
+          <button
+            onClick={handleStop}
+            className="group relative w-20 h-20 rounded-full bg-gradient-to-br from-red-500 to-pink-600 hover:from-red-600 hover:to-pink-700 transition-all duration-300 shadow-2xl hover:shadow-red-500/50 animate-pulse"
+          >
+            <div className="absolute inset-0 rounded-full bg-white opacity-0 group-hover:opacity-20 transition-opacity" />
+            <div className="w-8 h-8 mx-auto bg-white rounded-sm" />
+          </button>
+        )}
+
+        <p className="text-sm text-white font-medium bg-black/70 backdrop-blur-md px-4 py-2 rounded-full shadow-lg">
+          {isRecording ? 'Recording...' : 'Press to speak'}
+        </p>
       </div>
 
       {/* Session Report Modal */}
