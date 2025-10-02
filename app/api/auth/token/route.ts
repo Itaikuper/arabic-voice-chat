@@ -12,9 +12,39 @@
 import { GoogleGenAI } from '@google/genai';
 import { NextResponse } from 'next/server';
 import { getCustomInstruction } from '@/lib/instructionStore';
+import { syncAllCharacters } from '@/lib/syncInstructions';
+
+// Track if we've already synced on this server instance
+let hasSyncedOnStartup = false;
 
 export async function POST(request: Request) {
   try {
+    // Auto-sync character instructions on first request (lazy startup sync)
+    if (!hasSyncedOnStartup) {
+      try {
+        const syncResults = syncAllCharacters(false); // Don't force, respect admin overrides
+        const syncedCount = syncResults.filter(r => r.action === 'synced').length;
+        const skippedCount = syncResults.filter(r => r.action === 'skipped-override').length;
+
+        console.log('🔄 Auto-sync on startup:');
+        console.log(`   ✅ Synced: ${syncedCount} characters`);
+        console.log(`   ⏭️  Skipped: ${skippedCount} admin overrides`);
+
+        syncResults.forEach(result => {
+          if (result.action === 'synced') {
+            console.log(`   📝 ${result.characterId}: ${result.message}`);
+          } else if (result.action === 'skipped-override') {
+            console.log(`   🔒 ${result.characterId}: ${result.message}`);
+          }
+        });
+
+        hasSyncedOnStartup = true;
+      } catch (syncError) {
+        console.error('⚠️ Auto-sync failed (continuing with existing instructions):', syncError);
+        // Don't fail the request if sync fails
+      }
+    }
+
     // Get master API key from environment (server-side only)
     const apiKey = process.env.GOOGLE_GEMINI_API_KEY;
 

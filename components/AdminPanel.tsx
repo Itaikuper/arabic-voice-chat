@@ -40,6 +40,7 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
   const [editedInstruction, setEditedInstruction] = useState('');
   const [editedVoiceName, setEditedVoiceName] = useState('');
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [syncSuccess, setSyncSuccess] = useState(false);
 
   /**
    * Handle password submission
@@ -173,6 +174,49 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
       await loadInstructionData(selectedCharacter.id);
     } catch (err: any) {
       setError(err.message || 'Failed to reset');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /**
+   * Sync from code (force update)
+   */
+  const handleSyncFromCode = async () => {
+    if (!sessionToken || !instructionData) return;
+
+    if (!confirm('This will replace your custom instruction with the latest version from code. Continue?')) {
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setSyncSuccess(false);
+
+    try {
+      const response = await fetch('/api/admin/sync', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${sessionToken}`,
+        },
+        body: JSON.stringify({
+          characterId: selectedCharacter.id,
+          force: true,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to sync from code');
+      }
+
+      setSyncSuccess(true);
+      setTimeout(() => setSyncSuccess(false), 3000);
+
+      // Reload data
+      await loadInstructionData(selectedCharacter.id);
+    } catch (err: any) {
+      setError(err.message || 'Failed to sync');
     } finally {
       setLoading(false);
     }
@@ -363,8 +407,15 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
                     </div>
                   )}
 
+                  {/* Sync Success Display */}
+                  {syncSuccess && (
+                    <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
+                      🔄 Synced from code successfully! Instruction updated to latest version.
+                    </div>
+                  )}
+
                   {/* Action Buttons */}
-                  <div className="flex gap-3">
+                  <div className="flex gap-3 mb-3">
                     <button
                       onClick={handleSave}
                       disabled={loading || !editedInstruction || !editedVoiceName}
@@ -379,6 +430,23 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
                     >
                       Reset to Default
                     </button>
+                  </div>
+
+                  {/* Sync from Code Button */}
+                  <div className="mb-4">
+                    <button
+                      onClick={handleSyncFromCode}
+                      disabled={loading}
+                      className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-medium py-3 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      Sync from Code (Latest Version)
+                    </button>
+                    <p className="text-xs text-gray-500 mt-2 text-center">
+                      Pull the latest instruction from code. This will overwrite your custom changes.
+                    </p>
                   </div>
 
                   {/* Default Instruction Reference */}

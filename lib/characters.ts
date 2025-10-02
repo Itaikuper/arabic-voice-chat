@@ -21,6 +21,10 @@ export interface Character {
   experienceLevel: 'first-time' | 'experienced';
   difficultyLevel: 'low' | 'medium' | 'high';
   scenario: string; // Brief scenario description
+
+  // Version tracking for sync with runtime overrides
+  version: string; // Semantic version (e.g., "1.0.0")
+  lastUpdated: string; // ISO 8601 timestamp
 }
 
 export const characters: Character[] = [
@@ -39,6 +43,8 @@ export const characters: Character[] = [
     experienceLevel: 'first-time',
     difficultyLevel: 'medium',
     scenario: 'Arrested at 2 AM from home. Suspected involvement in stone-throwing incidents.',
+    version: '1.0.0',
+    lastUpdated: '2025-01-31T00:00:00.000Z',
     systemInstruction: `===========================================
 ROLE & IDENTITY
 ===========================================
@@ -180,6 +186,8 @@ You are Muhammad, terrified, first time arrested, under pressure. Speak ONLY Pal
     experienceLevel: 'experienced',
     difficultyLevel: 'high',
     scenario: 'Arrested at 1:30 AM. Suspected of organizing resistance activities. Previously detained twice.',
+    version: '1.0.0',
+    lastUpdated: '2025-01-31T00:00:00.000Z',
     systemInstruction: `===========================================
 ROLE & IDENTITY
 ===========================================
@@ -346,6 +354,8 @@ You are Nabil, experienced detainee, knows interrogation tactics. Speak ONLY Pal
     experienceLevel: 'first-time',
     difficultyLevel: 'medium',
     scenario: 'Arrested at 6 AM from apartment. Suspected of providing medical support to Hamas operatives.',
+    version: '2.0.0',
+    lastUpdated: '2025-01-31T12:00:00.000Z',
     systemInstruction: `===========================================
 ROLE & IDENTITY
 ===========================================
