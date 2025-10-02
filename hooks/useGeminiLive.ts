@@ -267,6 +267,22 @@ export function useGeminiLive({
           onmessage: (message: any) => {
             responseQueueRef.current.push(message);
 
+            // Debug: Log ALL parts of the message to understand structure
+            if (message.serverContent?.modelTurn) {
+              console.log('📨 Full message parts:', {
+                hasData: !!message.data,
+                hasInputTranscription: !!message.serverContent?.inputTranscription,
+                hasOutputTranscription: !!message.serverContent?.outputTranscription,
+                modelTurnParts: message.serverContent?.modelTurn?.parts?.map((part: any) => ({
+                  type: Object.keys(part)[0],
+                  hasText: !!part.text,
+                  hasThought: !!part.thought,
+                  textPreview: part.text ? part.text.substring(0, 50) + '...' : undefined,
+                  thoughtPreview: part.thought ? part.thought.substring(0, 50) + '...' : undefined,
+                })),
+              });
+            }
+
             // Debug: Log message structure (only relevant parts for transcript)
             if (message.serverContent?.inputTranscription || message.serverContent?.outputTranscription) {
               console.log('📨 Transcript message received:', {
@@ -344,10 +360,30 @@ export function useGeminiLive({
                 onTranscript(aiText);
               }
             }
-            // NOTE: Removed fallback to modelTurn.parts because:
-            // - It contains internal reasoning/thinking in English, not actual Arabic speech
-            // - With TEXT+AUDIO modalities, native transcription should always be available
-            // - If transcription is missing, it means the API didn't generate audio (error state)
+
+            // ALSO capture text parts from modelTurn (if transcription is missing)
+            // This catches the "text" part that the SDK warning mentions
+            if (!message.serverContent?.outputTranscription?.text && message.serverContent?.modelTurn?.parts) {
+              const textParts = message.serverContent.modelTurn.parts
+                .filter((part: any) => part.text)
+                .map((part: any) => part.text);
+
+              if (textParts.length > 0) {
+                const combinedText = textParts.join(' ');
+                console.log('📝 AI text part (fallback):', combinedText);
+                setConversationHistory((prev) => [
+                  ...prev,
+                  {
+                    speaker: 'ai',
+                    text: combinedText,
+                    timestamp: new Date(),
+                  },
+                ]);
+                if (onTranscript) {
+                  onTranscript(combinedText);
+                }
+              }
+            }
           },
           onerror: (error: any) => {
             console.error('❌ Gemini Live API error:', error);
