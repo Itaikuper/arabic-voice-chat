@@ -99,7 +99,7 @@ export async function POST(request: Request) {
           model: 'gemini-2.5-flash-native-audio-preview-09-2025',
           config: {
             sessionResumption: {}, // Allow reconnection with same token
-            responseModalities: ['TEXT', 'AUDIO'] as any, // Enable both for native transcription
+            responseModalities: ['AUDIO'] as any, // Lock AUDIO only; client adds TEXT for transcription
             speechConfig: {
               voiceConfig: {
                 prebuiltVoiceConfig: {
