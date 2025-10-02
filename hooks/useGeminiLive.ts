@@ -4,7 +4,7 @@
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { GoogleGenAI, Modality } from '@google/genai';
+import { GoogleGenAI } from '@google/genai';
 import {
   float32To16BitPCM,
   int16ArrayToBase64,
@@ -248,10 +248,9 @@ export function useGeminiLive({
       const activeCharacter = character || getDefaultCharacter();
 
       // Configuration for Palestinian Arabic conversation with character personality
-      // Note: systemInstruction and voiceName are locked in the ephemeral token
-      // IMPORTANT: We need both AUDIO and TEXT modalities to get transcription
+      // Note: systemInstruction, voiceName, and responseModalities are locked in the ephemeral token
+      // IMPORTANT: We need both AUDIO and TEXT modalities to get transcription (set in token)
       const config = {
-        responseModalities: [Modality.AUDIO, Modality.TEXT],
         inputAudioTranscription: {}, // Enable user speech transcription
         outputAudioTranscription: {}, // Enable AI speech transcription
       };
