@@ -267,8 +267,15 @@ export function useGeminiLive({
           onmessage: (message: any) => {
             responseQueueRef.current.push(message);
 
-            // Debug: Log full message structure
-            console.log('📨 Full message:', JSON.stringify(message, null, 2));
+            // Debug: Log message structure (only relevant parts for transcript)
+            if (message.serverContent?.inputTranscription || message.serverContent?.outputTranscription) {
+              console.log('📨 Transcript message received:', {
+                hasInputTranscription: !!message.serverContent?.inputTranscription,
+                inputText: message.serverContent?.inputTranscription?.text,
+                hasOutputTranscription: !!message.serverContent?.outputTranscription,
+                outputText: message.serverContent?.outputTranscription?.text,
+              });
+            }
 
             // Process audio data
             if (message.data) {
@@ -319,10 +326,11 @@ export function useGeminiLive({
               ]);
             }
 
-            // Capture output transcription (AI speech) - try native first, fallback to text parts
+            // Capture output transcription (AI speech) - ONLY use native transcription
+            // With responseModalities: ['TEXT', 'AUDIO'], Gemini provides native transcription
             if (message.serverContent?.outputTranscription?.text) {
               const aiText = message.serverContent.outputTranscription.text;
-              console.log('📝 AI transcript (native):', aiText);
+              console.log('🎙️ AI transcript (native):', aiText);
               setConversationHistory((prev) => [
                 ...prev,
                 {
@@ -335,27 +343,11 @@ export function useGeminiLive({
               if (onTranscript) {
                 onTranscript(aiText);
               }
-            } else if (message.serverContent?.modelTurn?.parts) {
-              // Fallback: Use text from modelTurn parts when native transcription unavailable
-              const textPart = message.serverContent.modelTurn.parts.find(
-                (part: any) => part.text
-              );
-              if (textPart?.text) {
-                console.log('📝 AI transcript (fallback from text parts):', textPart.text);
-                setConversationHistory((prev) => [
-                  ...prev,
-                  {
-                    speaker: 'ai',
-                    text: textPart.text,
-                    timestamp: new Date(),
-                  },
-                ]);
-                // Also call the legacy callback
-                if (onTranscript) {
-                  onTranscript(textPart.text);
-                }
-              }
             }
+            // NOTE: Removed fallback to modelTurn.parts because:
+            // - It contains internal reasoning/thinking in English, not actual Arabic speech
+            // - With TEXT+AUDIO modalities, native transcription should always be available
+            // - If transcription is missing, it means the API didn't generate audio (error state)
           },
           onerror: (error: any) => {
             console.error('❌ Gemini Live API error:', error);
