@@ -27,6 +27,18 @@ export interface ConversationTurn {
   timestamp: Date;
 }
 
+export interface PhaseInfo {
+  currentPhase: number;           // 0, 1, 2, 3
+  turnCount: number;
+  estimatedMinutes: number;
+  characterType: string;
+  phase2Eligible: boolean;
+  phase3Eligible: boolean;
+  phase2Threshold?: number;
+  phase3Threshold?: number;
+  nextPhaseInfo: string;
+}
+
 interface UseGeminiLiveOptions {
   character?: Character;
   onAudioData: (audioData: string) => void;
@@ -34,6 +46,7 @@ interface UseGeminiLiveOptions {
   onError?: (error: Error) => void;
   onUsageUpdate?: (metrics: UsageMetrics) => void;
   onAnalysisResult?: (result: SpeechAnalysisResult) => void;
+  onPhaseUpdate?: (phaseInfo: PhaseInfo) => void;
   enableAnalysis?: boolean; // Enable speech analysis feature
   analysisIntervalSeconds?: number; // How often to analyze (default: 10 seconds)
 }
@@ -45,12 +58,17 @@ export function useGeminiLive({
   onError,
   onUsageUpdate,
   onAnalysisResult,
+  onPhaseUpdate,
   enableAnalysis = false,
   analysisIntervalSeconds = 10,
 }: UseGeminiLiveOptions) {
   const [status, setStatus] = useState<ConnectionStatus>('disconnected');
   const [isRecording, setIsRecording] = useState(false);
   const [conversationHistory, setConversationHistory] = useState<ConversationTurn[]>([]);
+
+  // Phase tracking state
+  const [currentPhase, setCurrentPhase] = useState(0);
+  const previousPhaseRef = useRef(0);
 
   // Refs to maintain state across renders
   const sessionRef = useRef<any>(null);
@@ -558,6 +576,119 @@ export function useGeminiLive({
       console.error('Failed to stop recording:', error);
     }
   }, [enableAnalysis, analyzeBufferedAudio]);
+
+  /**
+   * Phase detection logic - detect phase transitions based on conversation
+   */
+  useEffect(() => {
+    if (!character) return;
+
+    const turnCount = Math.floor(conversationHistory.length / 2);
+    const estimatedMinutes = Math.round(turnCount * 1.5);
+
+    // Get last user message to check for triggers
+    const lastUserMessage = conversationHistory
+      .filter(turn => turn.speaker === 'user')
+      .slice(-1)[0]?.text || '';
+
+    // Phase 0 → 1: Detect "أمنيات" keyword
+    if (currentPhase === 0 && lastUserMessage.includes('أمنيات')) {
+      console.log('🔄 Phase 0 → 1: أمنيات mentioned');
+      setCurrentPhase(1);
+      return;
+    }
+
+    // Phase 1 → 2: Time + Eligibility
+    if (
+      currentPhase === 1 &&
+      character.phase2Eligible &&
+      character.phase2RequiredMinutes &&
+      estimatedMinutes >= character.phase2RequiredMinutes
+    ) {
+      console.log(`🔄 Phase 1 → 2: ${estimatedMinutes} min elapsed (threshold: ${character.phase2RequiredMinutes})`);
+      setCurrentPhase(2);
+      return;
+    }
+
+    // Phase 2 → 3: Time + Eligibility
+    if (
+      currentPhase === 2 &&
+      character.phase3Eligible &&
+      character.phase3RequiredMinutes &&
+      estimatedMinutes >= character.phase3RequiredMinutes
+    ) {
+      console.log(`🔄 Phase 2 → 3: ${estimatedMinutes} min elapsed (threshold: ${character.phase3RequiredMinutes})`);
+      setCurrentPhase(3);
+      return;
+    }
+  }, [conversationHistory, currentPhase, character]);
+
+  /**
+   * Context injection - inject phase-specific context when phase changes
+   */
+  useEffect(() => {
+    if (!character || !sessionRef.current || !character.phaseContexts) return;
+
+    if (currentPhase !== previousPhaseRef.current) {
+      const phaseKey = `phase${currentPhase}` as 'phase0' | 'phase1' | 'phase2' | 'phase3';
+      const newContext = character.phaseContexts[phaseKey];
+
+      if (newContext) {
+        console.log(`💉 Injecting Phase ${currentPhase} context for ${character.name}`);
+        try {
+          sessionRef.current.sendRealtimeInput({
+            text: `[PHASE ${currentPhase} CONTEXT]\n${newContext}`
+          });
+        } catch (error) {
+          console.error('Error injecting context:', error);
+        }
+      }
+
+      previousPhaseRef.current = currentPhase;
+    }
+  }, [currentPhase, character]);
+
+  /**
+   * Emit phase updates to parent component
+   */
+  useEffect(() => {
+    if (!onPhaseUpdate || !character) return;
+
+    const turnCount = Math.floor(conversationHistory.length / 2);
+    const estimatedMinutes = Math.round(turnCount * 1.5);
+
+    // Calculate next phase info
+    let nextPhaseInfo = 'N/A';
+    if (currentPhase === 0) {
+      nextPhaseInfo = 'Phase 1 when interrogator mentions "أمنيات"';
+    } else if (currentPhase === 1 && character.phase2Eligible && character.phase2RequiredMinutes) {
+      const remaining = character.phase2RequiredMinutes - estimatedMinutes;
+      nextPhaseInfo = remaining > 0
+        ? `Phase 2 in ~${remaining} min`
+        : `Phase 2 eligible now`;
+    } else if (currentPhase === 2 && character.phase3Eligible && character.phase3RequiredMinutes) {
+      const remaining = character.phase3RequiredMinutes - estimatedMinutes;
+      nextPhaseInfo = remaining > 0
+        ? `Phase 3 in ~${remaining} min`
+        : `Phase 3 eligible now`;
+    } else if (currentPhase === 1 && !character.phase2Eligible) {
+      nextPhaseInfo = 'Stays in Phase 1 (Type A - Never confesses)';
+    } else if (currentPhase === 2 && !character.phase3Eligible) {
+      nextPhaseInfo = 'Stays in Phase 2 (Type B - Probes but refuses)';
+    }
+
+    onPhaseUpdate({
+      currentPhase,
+      turnCount,
+      estimatedMinutes,
+      characterType: character.confessionType,
+      phase2Eligible: character.phase2Eligible,
+      phase3Eligible: character.phase3Eligible,
+      phase2Threshold: character.phase2RequiredMinutes,
+      phase3Threshold: character.phase3RequiredMinutes,
+      nextPhaseInfo,
+    });
+  }, [currentPhase, conversationHistory, character, onPhaseUpdate]);
 
   /**
    * Disconnect from Gemini Live API

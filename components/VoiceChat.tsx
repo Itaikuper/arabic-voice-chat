@@ -6,10 +6,11 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
-import { useGeminiLive, UsageMetrics } from '@/hooks/useGeminiLive';
+import { useGeminiLive, UsageMetrics, PhaseInfo } from '@/hooks/useGeminiLive';
 import { AudioPlayer } from './AudioPlayer';
 import ChatMeter from './ChatMeter';
 import FluencyMeter from './FluencyMeter';
+import { PhaseMeter } from './PhaseMeter';
 import SessionReport from './SessionReport';
 import { Character } from '@/lib/characters';
 import { SpeechAnalysisResult } from '@/lib/audio/speechAnalysis';
@@ -36,6 +37,7 @@ export function VoiceChat({ character, onBack, enableAnalysis = false }: VoiceCh
   const [generatedTranscript, setGeneratedTranscript] = useState<string>('');
   const [isGeneratingTranscript, setIsGeneratingTranscript] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [phaseInfo, setPhaseInfo] = useState<PhaseInfo | null>(null);
 
   // Handle audio data from Gemini
   const handleAudioData = useCallback((audioData: string) => {
@@ -88,6 +90,7 @@ export function VoiceChat({ character, onBack, enableAnalysis = false }: VoiceCh
     onError: handleError,
     onUsageUpdate: handleUsageUpdate,
     onAnalysisResult: handleAnalysisResult,
+    onPhaseUpdate: setPhaseInfo,
     enableAnalysis,
     analysisIntervalSeconds: 10,
   });
@@ -291,6 +294,13 @@ export function VoiceChat({ character, onBack, enableAnalysis = false }: VoiceCh
               outputSeconds={usageMetrics.outputSeconds}
             />
           </div>
+
+          {/* Phase Meter - Show current interrogation phase (Debug) */}
+          {phaseInfo && (
+            <div className="mb-6">
+              <PhaseMeter phaseInfo={phaseInfo} />
+            </div>
+          )}
 
           {/* Fluency Meter - Show when analysis is enabled and we have results */}
           {enableAnalysis && analysisResult && (
