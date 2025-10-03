@@ -611,6 +611,12 @@ export function useGeminiLive({
       .filter(turn => turn.speaker === 'user')
       .slice(-1)[0]?.text || '';
 
+    // Debug: Check if we have any user messages in conversation history
+    const userMessageCount = conversationHistory.filter(turn => turn.speaker === 'user').length;
+    if (process.env.NODE_ENV === 'development' && currentPhase === 0) {
+      console.log(`[Keyword Debug] User messages in history: ${userMessageCount}, Last message: "${lastUserMessage}"`);
+    }
+
     // Phase 0 → 1: Detect security keywords (flexible) OR time fallback
     const normalizeArabic = (text: string) => {
       return text.replace(/[\u064B-\u065F]/g, '').toLowerCase();
@@ -623,7 +629,7 @@ export function useGeminiLive({
     ];
 
     const normalized = normalizeArabic(lastUserMessage);
-    const hasSecurityKeyword = securityKeywords.some(kw =>
+    const hasSecurityKeyword = lastUserMessage.length > 0 && securityKeywords.some(kw =>
       normalized.includes(normalizeArabic(kw))
     );
 
