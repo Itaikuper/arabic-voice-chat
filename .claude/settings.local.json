@@ -34,7 +34,9 @@
       "Bash(git commit -m \"$(cat <<''EOF''\nRedesign UI with full-screen character and collapsible sidebar\n\n- Large centered character image fills entire screen for immersive experience\n- All controls moved to collapsible right sidebar (slides in/out)\n- Floating + button (top right) to toggle sidebar visibility\n- Floating microphone button (bottom center) always visible for quick access\n- Character name overlay at top center\n- Background image visible behind character\n- Smooth slide animations for sidebar (500ms ease-in-out)\n- Dark glassmorphism sidebar with backdrop blur\n- Recording button pulses when active\n- Clean, distraction-free interrogation environment\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
       "Bash(awk:*)",
       "Bash(git commit:*)",
-      "Bash(cmd /c:*)"
+      "Bash(cmd /c:*)",
+      "Bash(git revert:*)",
+      "Bash(npx tsx:*)"
     ],
     "deny": [],
     "ask": []
