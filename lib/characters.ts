@@ -353,7 +353,7 @@ Answer piece by piece - wait for specific questions. Show reluctance and guilt.`
     description: 'Young student from Jenin, first-time detainee, practical and quick to confess',
     descriptionArabic: 'طالب صغير من جنين، أول مرة بالاعتقال، واقعي وسريع بالاعتراف',
     avatar: '👦',
-    image: '/DETENEE1.567Z.png', // Will use same image as Muhammad for now
+    image: '/4פלסטיני.405Z.png',
     voiceName: 'Puck',
     cooperationLevel: 'high',
     experienceLevel: 'first-time',
