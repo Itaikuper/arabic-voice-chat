@@ -591,9 +591,27 @@ export function useGeminiLive({
       .filter(turn => turn.speaker === 'user')
       .slice(-1)[0]?.text || '';
 
-    // Phase 0 → 1: Detect "أمنيات" keyword
-    if (currentPhase === 0 && lastUserMessage.includes('أمنيات')) {
-      console.log('🔄 Phase 0 → 1: أمنيات mentioned');
+    // Phase 0 → 1: Detect security keywords (flexible) OR time fallback
+    const normalizeArabic = (text: string) => {
+      return text.replace(/[\u064B-\u065F]/g, '').toLowerCase();
+    };
+
+    const securityKeywords = [
+      'أمني', 'امني', 'أمنيات', 'امنيات', 'أمنية', 'امنية',
+      'نشاط', 'أنشطة', 'نشاطات',
+      'حاجز', 'حجار', 'مظاهر', 'رمي'
+    ];
+
+    const normalized = normalizeArabic(lastUserMessage);
+    const hasSecurityKeyword = securityKeywords.some(kw =>
+      normalized.includes(normalizeArabic(kw))
+    );
+
+    const timeElapsed = estimatedMinutes >= 7; // Fallback: 7 minutes
+
+    if (currentPhase === 0 && (hasSecurityKeyword || timeElapsed)) {
+      const trigger = hasSecurityKeyword ? 'security keyword detected' : '7 min elapsed (fallback)';
+      console.log(`🔄 Phase 0 → 1: ${trigger}`);
       setCurrentPhase(1);
       return;
     }
