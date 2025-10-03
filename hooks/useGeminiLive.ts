@@ -252,7 +252,7 @@ export function useGeminiLive({
 
       // Fetch ephemeral token from backend
       console.log('🔐 Fetching ephemeral token from backend...');
-      const { token, expireTime } = await fetchEphemeralToken();
+      const { token, expireTime, systemInstruction: serverSystemInstruction, voiceName: serverVoiceName } = await fetchEphemeralToken();
       ephemeralTokenRef.current = token;
       tokenExpiryRef.current = expireTime;
       console.log(`✅ Ephemeral token received (expires: ${expireTime})`);
@@ -267,12 +267,14 @@ export function useGeminiLive({
       const activeCharacter = character || getDefaultCharacter();
 
       // Configuration for Palestinian Arabic conversation with character personality
-      // Note: systemInstruction and voiceName are locked in the ephemeral token
+      // WORKAROUND: systemInstruction sent from client (not in ephemeral token)
+      // Google SDK has bug with non-ASCII characters in ephemeral token creation
       // IMPORTANT: We need both AUDIO and TEXT modalities to get native transcription
       const config = {
         responseModalities: [Modality.AUDIO, Modality.TEXT],
         inputAudioTranscription: {}, // Enable user speech transcription
         outputAudioTranscription: {}, // Enable AI speech transcription
+        systemInstruction: serverSystemInstruction, // Sent from server (contains Arabic text)
       };
 
       // Create Live API session

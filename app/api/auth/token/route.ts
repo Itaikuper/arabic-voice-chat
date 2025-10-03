@@ -89,7 +89,12 @@ export async function POST(request: Request) {
     const expireTime = new Date(Date.now() + 30 * 60 * 1000).toISOString(); // 30 minutes
     const newSessionExpireTime = new Date(Date.now() + 1 * 60 * 1000).toISOString(); // 1 minute
 
-    // Create ephemeral token with locked configuration
+    // CRITICAL WORKAROUND: Don't send systemInstruction in ephemeral token!
+    // Google GenAI SDK has a bug with non-ASCII (Arabic) characters in ephemeral token creation
+    // Error: "Cannot convert argument to a ByteString because the character at index X has a value > 255"
+    // Solution: Send systemInstruction from client-side in connect() config instead
+
+    // Create ephemeral token with locked configuration (WITHOUT systemInstruction)
     const token = await client.authTokens.create({
       config: {
         uses: 1, // Single use token (but allows sessionResumption)
@@ -107,7 +112,7 @@ export async function POST(request: Request) {
                 },
               },
             },
-            systemInstruction: finalSystemInstruction,
+            // systemInstruction: REMOVED - sent from client instead
           },
         },
         httpOptions: {
@@ -120,11 +125,13 @@ export async function POST(request: Request) {
     console.log(`⏰ Token expires at: ${expireTime}`);
     console.log(`⏰ New session window closes at: ${newSessionExpireTime}`);
 
-    // Return token to client
+    // Return token to client WITH systemInstruction (client will send it in connect config)
     return NextResponse.json({
       token: token.name,
       expireTime: expireTime,
       newSessionExpireTime: newSessionExpireTime,
+      systemInstruction: finalSystemInstruction, // Client needs this for connection config
+      voiceName: finalVoiceName, // Also return voice for consistency
     });
   } catch (error: any) {
     console.error('❌ Failed to generate ephemeral token:', error);
