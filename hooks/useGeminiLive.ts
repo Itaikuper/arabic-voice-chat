@@ -69,6 +69,7 @@ export function useGeminiLive({
   // Phase tracking state
   const [currentPhase, setCurrentPhase] = useState(0);
   const previousPhaseRef = useRef(0);
+  const recordingStartTimeRef = useRef<number | null>(null);
 
   // Refs to maintain state across renders
   const sessionRef = useRef<any>(null);
@@ -515,6 +516,12 @@ export function useGeminiLive({
       source.connect(workletNode);
       // Note: We don't connect to destination (speakers) to avoid feedback
 
+      // Track recording start time for real-time phase transitions
+      if (!recordingStartTimeRef.current) {
+        recordingStartTimeRef.current = Date.now();
+        console.log('⏱️  Recording session started at:', new Date().toLocaleTimeString());
+      }
+
       setIsRecording(true);
       console.log('🎤 Recording started');
 
@@ -584,7 +591,20 @@ export function useGeminiLive({
     if (!character) return;
 
     const turnCount = Math.floor(conversationHistory.length / 2);
-    const estimatedMinutes = Math.round(turnCount * 1.5);
+    const estimatedMinutesFromTurns = Math.round(turnCount * 1.5);
+
+    // Calculate real elapsed time in minutes
+    const realElapsedMinutes = recordingStartTimeRef.current
+      ? Math.floor((Date.now() - recordingStartTimeRef.current) / 1000 / 60)
+      : 0;
+
+    // Use the maximum of turn-based time or real time for phase transitions
+    const estimatedMinutes = Math.max(estimatedMinutesFromTurns, realElapsedMinutes);
+
+    // Debug logging (only in development)
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[Phase Debug] Phase: ${currentPhase}, Turns: ${turnCount}, TurnTime: ${estimatedMinutesFromTurns}min, RealTime: ${realElapsedMinutes}min, Using: ${estimatedMinutes}min`);
+    }
 
     // Get last user message to check for triggers
     const lastUserMessage = conversationHistory
@@ -610,8 +630,11 @@ export function useGeminiLive({
     const timeElapsed = estimatedMinutes >= 7; // Fallback: 7 minutes
 
     if (currentPhase === 0 && (hasSecurityKeyword || timeElapsed)) {
-      const trigger = hasSecurityKeyword ? 'security keyword detected' : '7 min elapsed (fallback)';
+      const trigger = hasSecurityKeyword
+        ? `security keyword detected: "${lastUserMessage.substring(0, 30)}..."`
+        : `${realElapsedMinutes} min elapsed (real time fallback)`;
       console.log(`🔄 Phase 0 → 1: ${trigger}`);
+      console.log(`⏱️  Time tracking - Turns: ${estimatedMinutesFromTurns}min, Real: ${realElapsedMinutes}min, Used: ${estimatedMinutes}min`);
       setCurrentPhase(1);
       return;
     }
