@@ -89,12 +89,11 @@ export async function POST(request: Request) {
     const expireTime = new Date(Date.now() + 30 * 60 * 1000).toISOString(); // 30 minutes
     const newSessionExpireTime = new Date(Date.now() + 1 * 60 * 1000).toISOString(); // 1 minute
 
-    // CRITICAL WORKAROUND: Don't send systemInstruction in ephemeral token!
-    // Google GenAI SDK has a bug with non-ASCII (Arabic) characters in ephemeral token creation
-    // Error: "Cannot convert argument to a ByteString because the character at index X has a value > 255"
-    // Solution: Send systemInstruction from client-side in connect() config instead
+    // WORKAROUND: Send systemInstruction using 'parts' structure
+    // Google SDK may have encoding issues with plain string containing Arabic text
+    // Use Content structure with parts array instead
 
-    // Create ephemeral token with locked configuration (WITHOUT systemInstruction)
+    // Create ephemeral token with locked configuration
     const token = await client.authTokens.create({
       config: {
         uses: 1, // Single use token (but allows sessionResumption)
@@ -112,7 +111,13 @@ export async function POST(request: Request) {
                 },
               },
             },
-            // systemInstruction: REMOVED - sent from client instead
+            systemInstruction: {
+              parts: [
+                {
+                  text: finalSystemInstruction,
+                },
+              ],
+            },
           },
         },
         httpOptions: {
