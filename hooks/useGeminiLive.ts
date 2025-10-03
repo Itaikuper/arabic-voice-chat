@@ -256,6 +256,7 @@ export function useGeminiLive({
       ephemeralTokenRef.current = token;
       tokenExpiryRef.current = expireTime;
       console.log(`✅ Ephemeral token received (expires: ${expireTime})`);
+      console.log(`📝 SystemInstruction received: ${serverSystemInstruction ? 'YES (' + serverSystemInstruction.substring(0, 50) + '...)' : 'NO - MISSING!'}`);
 
       // Use ephemeral token as API key with v1alpha API version
       const ai = new GoogleGenAI({
